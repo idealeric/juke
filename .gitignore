@@ -1,0 +1,4 @@
+# Ignore some editor garbage.
+*.swp
+*.swo
+*~
