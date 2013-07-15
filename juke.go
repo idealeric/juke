@@ -2,7 +2,7 @@
 Juke is a front-end, GTK+ client for the Music Playing Deamon.
 
 Copyright: Eric Butler 2013
-Version:   0.1
+Version:   0.1a
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -35,13 +35,12 @@ const (
 )
 
 var (
-	currentState  jukeState = NOT_CONNECTED
-	mpdConnection *mpd.Client
+	currentState jukeState = NOT_CONNECTED
 )
 
 func main() {
 
-	var songChan = make(chan mpd.Attrs)
+	var songChan chan mpd.Attrs = make(chan mpd.Attrs)
 
 	ui.InitInterface()
 	go updateCurrentSong(songChan)
@@ -57,107 +56,11 @@ func main() {
 		} else {
 			songChan <- curSong
 		}
+
+		// For code tidyness, callbacks are defined in a seperate file.
+		initCallBacks(songChan, mpdConnection)
+
 	}
-
-	ui.OnExit(func() error {
-
-		// Close any channels so that we clean up any running goroutines.
-		close(songChan)
-
-		if currentState > NOT_CONNECTED {
-			if err := mpdConnection.Close(); err != nil {
-				return err
-			}
-		}
-
-		return nil
-
-	})
-
-	ui.NextClick(func() error {
-		if currentState > NOT_CONNECTED {
-
-			if err := mpdConnection.Next(); err != nil {
-				return err
-			}
-
-			if curSong, erro := mpdConnection.CurrentSong(); erro != nil {
-				fmt.Println("bad", err) // TODO - Make this better
-			} else {
-				songChan <- curSong
-			}
-
-		}
-		return nil
-	})
-
-	ui.PreviousClick(func() error {
-		if currentState > NOT_CONNECTED {
-
-			if err := mpdConnection.Previous(); err != nil {
-				return err
-			}
-
-			if curSong, erro := mpdConnection.CurrentSong(); erro != nil {
-				fmt.Println("bad", err) // TODO - Make this better
-			} else {
-				songChan <- curSong
-			}
-
-		}
-		return nil
-	})
-
-	ui.PlayPauseClick(func() error {
-		if currentState == CONNECTED_AND_PLAYING {
-			if err := mpdConnection.Pause(true); err != nil {
-				return err
-			} else {
-				ui.SetPlayPause(false)
-				currentState = CONNECTED_AND_PAUSED
-			}
-		} else if currentState == CONNECTED_AND_PAUSED {
-			if err := mpdConnection.Pause(false); err != nil {
-				return err
-			} else {
-				ui.SetPlayPause(true)
-				currentState = CONNECTED_AND_PLAYING
-			}
-		} else if currentState == CONNECTED_AND_STOPPED {
-			if err := mpdConnection.PlayId(-1); err != nil {
-				return err
-			} else {
-
-				ui.SetPlayPause(true)
-				currentState = CONNECTED_AND_PLAYING
-
-				if curSong, erro := mpdConnection.CurrentSong(); erro != nil {
-					fmt.Println("bad", err) // TODO - Make this better
-				} else {
-					songChan <- curSong
-				}
-
-			}
-		} // end state control conditional
-
-		return nil
-
-	})
-
-	ui.StopClick(func() error {
-		if currentState > NOT_CONNECTED {
-			if err := mpdConnection.Stop(); err != nil {
-				return err
-			} else {
-				ui.SetPlayPause(false)
-				currentState = CONNECTED_AND_STOPPED
-			}
-
-			ui.SetCurrentSongStopped()
-
-		}
-		return nil
-	})
 
 	ui.MainLoop() // This blocks until the GUI is destoryed.
 
