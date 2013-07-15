@@ -41,7 +41,10 @@ var (
 
 func main() {
 
+	var songChan = make(chan mpd.Attrs)
+
 	ui.InitInterface()
+	go updateCurrentSong(songChan)
 
 	mpdConnection, err := mpd.Dial("tcp", "127.0.0.1:6600")
 	if err != nil {
@@ -52,17 +55,23 @@ func main() {
 		if curSong, erro := mpdConnection.CurrentSong(); erro != nil {
 			fmt.Println("bad", err) // TODO - Make this better
 		} else {
-			ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
+			songChan <- curSong
 		}
 	}
 
 	ui.OnExit(func() error {
+
+		// Close any channels so that we clean up any running goroutines.
+		close(songChan)
+
 		if currentState > NOT_CONNECTED {
 			if err := mpdConnection.Close(); err != nil {
 				return err
 			}
 		}
+
 		return nil
+
 	})
 
 	ui.NextClick(func() error {
@@ -75,7 +84,7 @@ func main() {
 			if curSong, erro := mpdConnection.CurrentSong(); erro != nil {
 				fmt.Println("bad", err) // TODO - Make this better
 			} else {
-				ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
+				songChan <- curSong
 			}
 
 		}
@@ -92,7 +101,7 @@ func main() {
 			if curSong, erro := mpdConnection.CurrentSong(); erro != nil {
 				fmt.Println("bad", err) // TODO - Make this better
 			} else {
-				ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
+				songChan <- curSong
 			}
 
 		}
@@ -125,7 +134,7 @@ func main() {
 				if curSong, erro := mpdConnection.CurrentSong(); erro != nil {
 					fmt.Println("bad", err) // TODO - Make this better
 				} else {
-					ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
+					songChan <- curSong
 				}
 
 			}
@@ -150,6 +159,6 @@ func main() {
 		return nil
 	})
 
-	ui.MainLoop()
+	ui.MainLoop() // This blocks until the GUI is destoryed.
 
 } // end main
