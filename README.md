@@ -6,7 +6,6 @@ Juke is a front-end, GTK+ (v2) client for the Music Playing Deamon. Its written 
 The TODO List
 -------------------------
 
-* An "update" interrupt to update song progress, among other things.
 * Current song album artwork.
 * A juke logo.
 * Icons and actions for secondary controls.

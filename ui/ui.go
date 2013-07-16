@@ -221,3 +221,18 @@ func InitInterface() {
 	window.ShowAll()
 
 } // end Init
+
+// SetPlayPause changes the image on the play button based on the boolean argument. True will
+// display a pause image, while false will display a play image.
+// TODO - This function is not great and acutally will cause a crash in X11
+//	  if called too much. Investigation and replacement are needed.
+//	  This call is commented out until its fixed.
+func SetPlayPause(pause bool) {
+
+	if pause {
+		playBackControls[PLAY_PAUSE_BUTTON].SetImage(gtk.NewImageFromStock(gtk.STOCK_MEDIA_PAUSE, gtk.ICON_SIZE_DND))
+	} else {
+		playBackControls[PLAY_PAUSE_BUTTON].SetImage(gtk.NewImageFromStock(gtk.STOCK_MEDIA_PLAY, gtk.ICON_SIZE_DND))
+	}
+
+} // end SetPlayPause

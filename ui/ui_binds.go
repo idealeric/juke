@@ -3,7 +3,6 @@ package ui
 import (
 	"fmt"
 	"github.com/mattn/go-gtk/glib"
-	"github.com/mattn/go-gtk/gtk"
 )
 
 func callBackCheckandCheckforError(f func() error, cntx *glib.CallbackContext) {
@@ -58,15 +57,3 @@ func StopClick(f func() error) {
 	})
 
 } // end StopClick
-
-// SetPlayPause changes the image on the play button based on the boolean argument. True will
-// display a pause image, while false will display a play image.
-func SetPlayPause(pause bool) {
-
-	if pause {
-		playBackControls[PLAY_PAUSE_BUTTON].SetImage(gtk.NewImageFromStock(gtk.STOCK_MEDIA_PAUSE, gtk.ICON_SIZE_DND))
-	} else {
-		playBackControls[PLAY_PAUSE_BUTTON].SetImage(gtk.NewImageFromStock(gtk.STOCK_MEDIA_PLAY, gtk.ICON_SIZE_DND))
-	}
-
-} // end SetPlayPause

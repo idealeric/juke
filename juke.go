@@ -26,18 +26,21 @@ import (
 // Keep main short and sweet!
 func main() {
 
-	var updateChannel chan jukeStateRequest = make(chan jukeStateRequest)
+	var (
+		updateChannel chan jukeStateRequest = make(chan jukeStateRequest)
+		pollChannel chan int = make(chan int)
+	)
 
 	ui.InitInterface()
 
 	// Init any concurrent routines:
-	go update(updateChannel)
+	go update(updateChannel, pollChannel)
 
 	// For code tidyness, callbacks are defined in a seperate file.
 	initCallBacks(updateChannel)
 
 	ui.MainLoop() // This blocks until the GUI is destoryed.
 
-	close(updateChannel)
+	close(updateChannel) // Tells update to shut off
 
 } // end main
