@@ -20,48 +20,24 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 package main
 
 import (
-	"code.google.com/p/gompd/mpd"
-	"fmt"
 	"github.com/idealeric/juke/ui"
 )
 
-type jukeState uint8
-
-const (
-	NOT_CONNECTED jukeState = iota
-	CONNECTED_AND_STOPPED
-	CONNECTED_AND_PAUSED
-	CONNECTED_AND_PLAYING
-)
-
-var (
-	currentState jukeState = NOT_CONNECTED
-)
-
+// Keep main short and sweet!
 func main() {
 
-	var songChan chan mpd.Attrs = make(chan mpd.Attrs)
+	var updateChannel chan jukeStateRequest = make(chan jukeStateRequest)
 
 	ui.InitInterface()
-	go updateCurrentSong(songChan)
 
-	mpdConnection, err := mpd.Dial("tcp", "127.0.0.1:6600")
-	if err != nil {
-		fmt.Println("bad", err) // TODO - Make this better
-	} else {
-		ui.SetPlayPause(true)
-		currentState = CONNECTED_AND_PLAYING
-		if curSong, erro := mpdConnection.CurrentSong(); erro != nil {
-			fmt.Println("bad", err) // TODO - Make this better
-		} else {
-			songChan <- curSong
-		}
+	// Init any concurrent routines:
+	go update(updateChannel)
 
-		// For code tidyness, callbacks are defined in a seperate file.
-		initCallBacks(songChan, mpdConnection)
-
-	}
+	// For code tidyness, callbacks are defined in a seperate file.
+	initCallBacks(updateChannel)
 
 	ui.MainLoop() // This blocks until the GUI is destoryed.
+
+	close(updateChannel)
 
 } // end main
