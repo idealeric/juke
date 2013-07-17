@@ -13,22 +13,30 @@ import (
 func initCallBacks(updateChannel chan jukeStateRequest) {
 
 	ui.NextClick(func() error {
-		updateChannel <- NEXT_TRACK
+		go func() {
+			updateChannel <- NEXT_TRACK
+		}()
 		return nil
 	})
 
 	ui.PreviousClick(func() error {
-		updateChannel <- PREVIOUS_TRACK
+		go func() {
+			updateChannel <- PREVIOUS_TRACK
+		}()
 		return nil
 	})
 
 	ui.PlayPauseClick(func() error {
-		updateChannel <- PLAY_OR_PAUSE
+		go func() {
+			updateChannel <- PLAY_OR_PAUSE
+		}()
 		return nil
 	})
 
 	ui.StopClick(func() error {
-		updateChannel <- STOP
+		go func() {
+			updateChannel <- STOP
+		}()
 		return nil
 	})
 
