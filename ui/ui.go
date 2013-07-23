@@ -5,6 +5,7 @@ is to abstract and de-couple the main program's logic from the user interface.
 package ui
 
 import (
+	"github.com/mattn/go-gtk/gdk"
 	"github.com/mattn/go-gtk/glib"
 	"github.com/mattn/go-gtk/gtk"
 )
@@ -51,7 +52,9 @@ var (
 // MainLoop runs the GUI toolkit's main loop.
 func MainLoop() {
 
+	gdk.ThreadsEnter()
 	gtk.Main()
+	gdk.ThreadsLeave()
 
 } // end MainLoop
 
@@ -108,8 +111,12 @@ func SetCurrentSongStopped() {
 // InitInterface inits the GUI toolkit and builds most of the base interface.
 func InitInterface() {
 
-	// Initialize a window.
+	// Initialize GTK/GLib.
+	// This is a thread-safe mode.
+	glib.ThreadInit(nil)
+	gdk.ThreadsInit()
 	gtk.Init(nil)
+	// Initialize a window.
 	window = gtk.NewWindow(gtk.WINDOW_TOPLEVEL)
 	window.SetPosition(gtk.WIN_POS_CENTER)
 	window.SetIconName("gtk-dialog-info") // TODO - Make an icon and set it.
@@ -224,9 +231,6 @@ func InitInterface() {
 
 // SetPlayPause changes the image on the play button based on the boolean argument. True will
 // display a pause image, while false will display a play image.
-// TODO - This function is not great and acutally will cause a crash in X11
-//	  if called too much. Investigation and replacement are needed.
-//	  This call is commented out until its fixed.
 func SetPlayPause(pause bool) {
 
 	if pause {
@@ -236,3 +240,18 @@ func SetPlayPause(pause bool) {
 	}
 
 } // end SetPlayPause
+
+// Lock grabs the ui lock.
+func Lock() {
+
+	gdk.ThreadsEnter()
+
+} // end Lock
+
+// Unlock releases any ui locks.
+func Unlock() {
+
+	gdk.Flush()
+	gdk.ThreadsLeave()
+
+} // end Unlock

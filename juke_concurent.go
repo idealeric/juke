@@ -67,6 +67,8 @@ func update(stateRequestChannel chan jukeStateRequest, pollChannel chan int) {
 
 	for requestedState := range stateRequestChannel {
 
+		ui.Lock()
+
 		if currentState > NOT_CONNECTED {
 			switch requestedState {
 
@@ -76,18 +78,18 @@ func update(stateRequestChannel chan jukeStateRequest, pollChannel chan int) {
 				if errStatus != nil {
 					fmt.Println("bad", errStatus) // TODO - Make this better
 				} else if status["state"] == "stop" {
-					//ui.SetPlayPause(false)
+					ui.SetPlayPause(false)
 					ui.SetCurrentSongStopped()
 					currentState = CONNECTED_AND_STOPPED
 					pollChannel <- STOPPED_POLLING
 				} else {
 
 					if status["state"] == "pause" {
-						//ui.SetPlayPause(false)
+						ui.SetPlayPause(false)
 						currentState = CONNECTED_AND_PAUSED
 						pollChannel <- PAUSED_POLLING
 					} else if status["state"] == "play" {
-						//ui.SetPlayPause(true)
+						ui.SetPlayPause(true)
 						currentState = CONNECTED_AND_PLAYING
 						pollChannel <- PLAYING_POLLING
 					}
@@ -125,14 +127,14 @@ func update(stateRequestChannel chan jukeStateRequest, pollChannel chan int) {
 					if err := mpdConnection.Pause(true); err != nil {
 						fmt.Println("bad", err) // TODO - Make this better
 					} else {
-						//ui.SetPlayPause(false)
+						ui.SetPlayPause(false)
 						currentState = CONNECTED_AND_PAUSED
 					}
 				} else if currentState == CONNECTED_AND_PAUSED {
 					if err := mpdConnection.Pause(false); err != nil {
 						fmt.Println("bad", err) // TODO - Make this better
 					} else {
-						//ui.SetPlayPause(true)
+						ui.SetPlayPause(true)
 						currentState = CONNECTED_AND_PLAYING
 					}
 				} else if currentState == CONNECTED_AND_STOPPED {
@@ -140,7 +142,7 @@ func update(stateRequestChannel chan jukeStateRequest, pollChannel chan int) {
 						fmt.Println("bad", err) // TODO - Make this better
 					} else {
 
-						//ui.SetPlayPause(true)
+						ui.SetPlayPause(true)
 						currentState = CONNECTED_AND_PLAYING
 
 						if curSong, erro := mpdConnection.CurrentSong(); erro != nil {
@@ -157,7 +159,7 @@ func update(stateRequestChannel chan jukeStateRequest, pollChannel chan int) {
 				if err := mpdConnection.Stop(); err != nil {
 					fmt.Println("bad", err) // TODO - Make this better
 				} else {
-					//ui.SetPlayPause(false)
+					ui.SetPlayPause(false)
 					ui.SetCurrentSongStopped()
 					currentState = CONNECTED_AND_STOPPED
 				}
@@ -165,6 +167,8 @@ func update(stateRequestChannel chan jukeStateRequest, pollChannel chan int) {
 			} // end requestedState switch
 
 		} // end if not connected
+
+		ui.Unlock()
 
 	} // end for wait on channel
 
