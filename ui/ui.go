@@ -8,6 +8,7 @@ import (
 	"github.com/mattn/go-gtk/gdk"
 	"github.com/mattn/go-gtk/glib"
 	"github.com/mattn/go-gtk/gtk"
+	"strings"
 )
 
 // Playback control constant indexes:
@@ -68,7 +69,7 @@ func SetCurrentSong(songName, artist, album string) {
 		songLabel += "Unknown</span>\nby "
 	} else {
 		windowTitle += songName + " by "
-		songLabel += songName + "</span>\nby "
+		songLabel += strings.Replace(songName, "&", "&amp;", -1) + "</span>\nby "
 	}
 
 	if artist == "" {
@@ -76,14 +77,14 @@ func SetCurrentSong(songName, artist, album string) {
 		songLabel += "Unknown"
 	} else {
 		windowTitle += artist
-		songLabel += artist
+		songLabel += strings.Replace(artist, "&", "&amp;", -1)
 	}
 
 	windowTitle += " [Juke]"
 	window.SetTitle(windowTitle)
 
 	if album != "" {
-		songLabel += " from " + album
+		songLabel += " from " + strings.Replace(album, "&", "&amp;", -1)
 	}
 
 	currentSongTitle.SetMarkup(songLabel)
