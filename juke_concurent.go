@@ -105,20 +105,22 @@ func update(stateRequestChannel chan jukeStateRequest, pollChannel chan int) {
 
 			case NEXT_TRACK, PREVIOUS_TRACK:
 
-				if requestedState == PREVIOUS_TRACK {
-					if err := mpdConnection.Previous(); err != nil {
-						fmt.Println("bad", err) // TODO - Make this better
+				if currentState > CONNECTED_AND_STOPPED {
+					if requestedState == PREVIOUS_TRACK {
+						if err := mpdConnection.Previous(); err != nil {
+							fmt.Println("bad", err) // TODO - Make this better
+						}
+					} else { // NEXT_TRACK
+						if err := mpdConnection.Next(); err != nil {
+							fmt.Println("bad", err) // TODO - Make this better
+						}
 					}
-				} else { // NEXT_TRACK
-					if err := mpdConnection.Next(); err != nil {
-						fmt.Println("bad", err) // TODO - Make this better
-					}
-				}
 
-				if curSong, erro := mpdConnection.CurrentSong(); erro != nil {
-					fmt.Println("bad", erro) // TODO - Make this better
-				} else {
-					ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
+					if curSong, erro := mpdConnection.CurrentSong(); erro != nil {
+						fmt.Println("bad", erro) // TODO - Make this better
+					} else {
+						ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
+					}
 				}
 
 			case PLAY_OR_PAUSE:
