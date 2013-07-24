@@ -27,8 +27,8 @@ import (
 func main() {
 
 	var (
-		updateChannel chan jukeStateRequest = make(chan jukeStateRequest)
-		pollChannel chan int = make(chan int)
+		updateChannel chan *jukeRequest = make(chan *jukeRequest)
+		pollChannel   chan int          = make(chan int)
 	)
 
 	ui.InitInterface()

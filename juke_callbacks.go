@@ -10,32 +10,32 @@ import (
 	"github.com/idealeric/juke/ui"
 )
 
-func initCallBacks(updateChannel chan jukeStateRequest) {
+func initCallBacks(updateChannel chan *jukeRequest) {
 
 	ui.NextClick(func() error {
 		go func() {
-			updateChannel <- NEXT_TRACK
+			updateChannel <- &jukeRequest{state:NEXT_TRACK}
 		}()
 		return nil
 	})
 
 	ui.PreviousClick(func() error {
 		go func() {
-			updateChannel <- PREVIOUS_TRACK
+			updateChannel <- &jukeRequest{state:PREVIOUS_TRACK}
 		}()
 		return nil
 	})
 
 	ui.PlayPauseClick(func() error {
 		go func() {
-			updateChannel <- PLAY_OR_PAUSE
+			updateChannel <- &jukeRequest{state:PLAY_OR_PAUSE}
 		}()
 		return nil
 	})
 
 	ui.StopClick(func() error {
 		go func() {
-			updateChannel <- STOP
+			updateChannel <- &jukeRequest{state:STOP}
 		}()
 		return nil
 	})

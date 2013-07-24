@@ -35,6 +35,12 @@ const (
 	STOP
 )
 
+// update() accepts jukeRequests, which consist in a jukeStateRequest and any other
+// information that may be required. Members will be added as needed.
+type jukeRequest struct {
+	state jukeStateRequest
+}
+
 // Variable rate at which juke will poll MPD, in ms
 const (
 	END_POLLING = 0
@@ -50,7 +56,7 @@ const (
 //	  force an update (button press, etc)
 // The incoming communication is an attempted state change or request
 // for general update.
-func update(stateRequestChannel chan jukeStateRequest, pollChannel chan int) {
+func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
 
 	var currentState jukeState = NOT_CONNECTED
 	mpdConnection, err := mpd.Dial("tcp", "127.0.0.1:6600")
@@ -65,12 +71,12 @@ func update(stateRequestChannel chan jukeStateRequest, pollChannel chan int) {
 	// This is a bogus state until we can determine our real state from our first polling.
 	currentState = CONNECTED_AND_UNKNOWN
 
-	for requestedState := range stateRequestChannel {
+	for request := range stateRequestChannel {
 
 		ui.Lock()
 
 		if currentState > NOT_CONNECTED {
-			switch requestedState {
+			switch request.state {
 
 			case POLL_REFREASH:
 
@@ -108,7 +114,7 @@ func update(stateRequestChannel chan jukeStateRequest, pollChannel chan int) {
 			case NEXT_TRACK, PREVIOUS_TRACK:
 
 				if currentState > CONNECTED_AND_STOPPED {
-					if requestedState == PREVIOUS_TRACK {
+					if request.state == PREVIOUS_TRACK {
 						if err := mpdConnection.Previous(); err != nil {
 							fmt.Println("bad", err) // TODO - Make this better
 						}
@@ -171,7 +177,7 @@ func update(stateRequestChannel chan jukeStateRequest, pollChannel chan int) {
 					currentState = CONNECTED_AND_STOPPED
 				}
 
-			} // end requestedState switch
+			} // end request switch
 
 		} // end if not connected
 
@@ -190,12 +196,12 @@ func update(stateRequestChannel chan jukeStateRequest, pollChannel chan int) {
 
 } // end update
 
-func poll(updateChannel chan jukeStateRequest, pollChannel chan int) {
+func poll(updateChannel chan *jukeRequest, pollChannel chan int) {
 
 	var rate int
 
 	for {
-		updateChannel <- POLL_REFREASH
+		updateChannel <- &jukeRequest{state:POLL_REFREASH}
 
 		rate = <-pollChannel
 		if rate == END_POLLING {
