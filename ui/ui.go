@@ -247,35 +247,22 @@ func SetPlayPause(pause bool) {
 
 } // end SetPlayPause
 
-// SetProgressBarTime takes song progress in the form of "at:total" and updates the
-// progress bar to reflect that both textually and visually. The input is in string
-// form to consolidate all of the conversion to one place in the codebase.
-func SetProgressBarTime(time string) {
+// SetProgressBarTime takes song progress and updates the progress bar to
+// reflect that both textually and visually.
+func SetProgressBarTime(at, total int) {
 
-	splitTime := strings.SplitN(time, ":", 2)
-	at, total := splitTime[0], splitTime[1]
-
-	atNum, errAt := strconv.Atoi(at)
-	if errAt != nil {
-		return // TODO - make this better
-	}
-	totalNum, errTotal := strconv.Atoi(total)
-	if errTotal != nil {
-		return // TODO - make this better
-	}
-
-	atSeconds, totalSeconds := atNum%60, totalNum%60
-	timeText := strconv.Itoa(atNum/60) + ":"
+	atSeconds, totalSeconds := at%60, total%60
+	timeText := strconv.Itoa(at/60) + ":"
 	if atSeconds < 10 {
 		timeText += "0"
 	}
-	timeText += strconv.Itoa(atSeconds) + " / " + strconv.Itoa(totalNum/60) + ":"
+	timeText += strconv.Itoa(atSeconds) + " / " + strconv.Itoa(total/60) + ":"
 	if totalSeconds < 10 {
 		timeText += "0"
 	}
 	timeText += strconv.Itoa(totalSeconds)
 	progressBar.SetText(timeText)
-	progressBar.SetFraction(float64(atNum) / float64(totalNum))
+	progressBar.SetFraction(float64(at) / float64(total))
 
 } // end SetProgressBarTime
 

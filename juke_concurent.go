@@ -85,8 +85,7 @@ func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
 
 			case POLL_REFREASH:
 
-				status, errStatus := mpdConnection.Status()
-				if errStatus != nil {
+				if status, errStatus := mpdConnection.Status(); errStatus != nil {
 					fmt.Println("bad", errStatus) // TODO - Make this better
 				} else if status["state"] == "stop" {
 					ui.SetPlayPause(false)
@@ -111,7 +110,13 @@ func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
 						fmt.Println("bad", erro) // TODO - Make this better
 					} else {
 						ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
-						ui.SetProgressBarTime(status["time"])
+						totalTime, errTotalTime := strconv.Atoi(curSong["Time"]);
+						curTime, errCurTime := strconv.Atoi(strings.SplitN(status["time"], ":", 2)[0]);
+						if errTotalTime != nil || errCurTime != nil {
+							fmt.Println("bad", errTotalTime, errCurTime) // TODO - Make this better
+						} else {
+							ui.SetProgressBarTime(curTime, totalTime)
+						}
 					}
 
 				}
@@ -133,7 +138,11 @@ func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
 						fmt.Println("bad", erro) // TODO - Make this better
 					} else {
 						ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
-						ui.SetProgressBarTime("0:" + curSong["Time"])
+						if totalTime, errTotalTime := strconv.Atoi(curSong["Time"]); errTotalTime != nil {
+							fmt.Println("bad", errTotalTime) // TODO - Make this better
+						} else {
+							ui.SetProgressBarTime(0, totalTime)
+						}
 					}
 				}
 
@@ -165,7 +174,11 @@ func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
 							fmt.Println("bad", erro) // TODO - Make this better
 						} else {
 							ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
-							ui.SetProgressBarTime("0:" + curSong["Time"])
+							if totalTime, errTotalTime := strconv.Atoi(curSong["Time"]); errTotalTime != nil {
+								fmt.Println("bad", errTotalTime) // TODO - Make this better
+							} else {
+								ui.SetProgressBarTime(0, totalTime)
+							}
 						}
 
 					}
@@ -198,7 +211,7 @@ func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
 							if seekErr := mpdConnection.Seek(song, seektime); seekErr != nil {
 								fmt.Println("bad", seekErr) // TODO - Make this better
 							} else {
-								ui.SetProgressBarTime(strconv.Itoa(seektime) + ":" + strconv.Itoa(length))
+								ui.SetProgressBarTime(seektime, length)
 							}
 						}
 					} // end status error check
