@@ -8,6 +8,7 @@ import (
 	"github.com/mattn/go-gtk/gdk"
 	"github.com/mattn/go-gtk/glib"
 	"github.com/mattn/go-gtk/gtk"
+	"strconv"
 	"strings"
 )
 
@@ -37,6 +38,7 @@ const (
 	NOT_CONNECTED_SONG_LABEL   string = "<span size=\"x-large\" font_weight=\"bold\">Stopped</span>\nNot connected."
 	STOPPED_WINDOW_TITLE       string = "Stopped [Juke]"
 	STOPPED_SONG_LABEL         string = "<span size=\"x-large\" font_weight=\"bold\">Stopped</span>\nConnected."
+	STOPPED_OR_DC_PROGRESS     string = " "
 )
 
 // Global referances for all "updating" GUI elements.
@@ -146,7 +148,7 @@ func InitInterface() {
 	// Song progress bar:
 	progressBar = gtk.NewProgressBar()
 	progressBar.SetOrientation(gtk.PROGRESS_LEFT_TO_RIGHT)
-	progressBar.SetText("0:00 / 0:00")
+	progressBar.SetText(STOPPED_OR_DC_PROGRESS)
 	progressBar.SetFraction(0)
 	progressBar.SetPulseStep(0.05)
 	//progressBar.SetEllipsize(0.05) // TODO - Implement this (maybe)
@@ -241,6 +243,47 @@ func SetPlayPause(pause bool) {
 	}
 
 } // end SetPlayPause
+
+// SetProgressBarTime takes song progress in the form of "at:total" and updates the
+// progress bar to reflect that both textually and visually. The input is in string
+// form to consolidate all of the conversion to one place in the codebase.
+func SetProgressBarTime(time string) {
+
+	splitTime := strings.SplitN(time, ":", 2)
+	at, total := splitTime[0], splitTime[1]
+
+	atNum, errAt := strconv.Atoi(at)
+	if errAt != nil {
+		return // TODO - make this better
+	}
+	totalNum, errTotal := strconv.Atoi(total)
+	if errTotal != nil {
+		return // TODO - make this better
+	}
+
+	atSeconds, totalSeconds := atNum%60, totalNum%60
+	timeText := strconv.Itoa(atNum/60) + ":"
+	if atSeconds < 10 {
+		timeText += "0"
+	}
+	timeText += strconv.Itoa(atSeconds) + " / " + strconv.Itoa(totalNum/60) + ":"
+	if totalSeconds < 10 {
+		timeText += "0"
+	}
+	timeText += strconv.Itoa(totalSeconds)
+	progressBar.SetText(timeText)
+	progressBar.SetFraction(float64(atNum) / float64(totalNum))
+
+} // end SetProgressBarTime
+
+// SetProgressBarTimeStoppedOrDisconnected sets the progress bar to reflect that
+// the client is stopped or is disconnected.
+func SetProgressBarTimeStoppedOrDisconnected() {
+
+	progressBar.SetText(STOPPED_OR_DC_PROGRESS)
+	progressBar.SetFraction(0.0)
+
+} // end SetProgressBarTimeStoppedOrDisconnected
 
 // Lock grabs the ui lock.
 func Lock() {

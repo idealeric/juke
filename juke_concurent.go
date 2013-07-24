@@ -80,6 +80,7 @@ func update(stateRequestChannel chan jukeStateRequest, pollChannel chan int) {
 				} else if status["state"] == "stop" {
 					ui.SetPlayPause(false)
 					ui.SetCurrentSongStopped()
+					ui.SetProgressBarTimeStoppedOrDisconnected()
 					currentState = CONNECTED_AND_STOPPED
 					pollChannel <- STOPPED_POLLING
 				} else {
@@ -99,6 +100,7 @@ func update(stateRequestChannel chan jukeStateRequest, pollChannel chan int) {
 						fmt.Println("bad", erro) // TODO - Make this better
 					} else {
 						ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
+						ui.SetProgressBarTime(status["time"])
 					}
 
 				}
@@ -120,6 +122,7 @@ func update(stateRequestChannel chan jukeStateRequest, pollChannel chan int) {
 						fmt.Println("bad", erro) // TODO - Make this better
 					} else {
 						ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
+						ui.SetProgressBarTime("0:" + curSong["Time"])
 					}
 				}
 
@@ -151,6 +154,7 @@ func update(stateRequestChannel chan jukeStateRequest, pollChannel chan int) {
 							fmt.Println("bad", erro) // TODO - Make this better
 						} else {
 							ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
+							ui.SetProgressBarTime("0:" + curSong["Time"])
 						}
 
 					}
@@ -163,6 +167,7 @@ func update(stateRequestChannel chan jukeStateRequest, pollChannel chan int) {
 				} else {
 					ui.SetPlayPause(false)
 					ui.SetCurrentSongStopped()
+					ui.SetProgressBarTimeStoppedOrDisconnected()
 					currentState = CONNECTED_AND_STOPPED
 				}
 
