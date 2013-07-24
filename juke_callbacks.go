@@ -14,28 +14,35 @@ func initCallBacks(updateChannel chan *jukeRequest) {
 
 	ui.NextClick(func() error {
 		go func() {
-			updateChannel <- &jukeRequest{state:NEXT_TRACK}
+			updateChannel <- &jukeRequest{state: NEXT_TRACK}
 		}()
 		return nil
 	})
 
 	ui.PreviousClick(func() error {
 		go func() {
-			updateChannel <- &jukeRequest{state:PREVIOUS_TRACK}
+			updateChannel <- &jukeRequest{state: PREVIOUS_TRACK}
 		}()
 		return nil
 	})
 
 	ui.PlayPauseClick(func() error {
 		go func() {
-			updateChannel <- &jukeRequest{state:PLAY_OR_PAUSE}
+			updateChannel <- &jukeRequest{state: PLAY_OR_PAUSE}
 		}()
 		return nil
 	})
 
 	ui.StopClick(func() error {
 		go func() {
-			updateChannel <- &jukeRequest{state:STOP}
+			updateChannel <- &jukeRequest{state: STOP}
+		}()
+		return nil
+	})
+
+	ui.ProgressBarClick(func(x int, width int) error {
+		go func() {
+			updateChannel <- &jukeRequest{state: PROGRESS_CHANGE, progressX: x, progressWidth: width}
 		}()
 		return nil
 	})

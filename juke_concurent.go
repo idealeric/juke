@@ -10,6 +10,8 @@ import (
 	"code.google.com/p/gompd/mpd"
 	"fmt"
 	"github.com/idealeric/juke/ui"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -33,19 +35,22 @@ const (
 	PREVIOUS_TRACK
 	PLAY_OR_PAUSE
 	STOP
+	PROGRESS_CHANGE
 )
 
 // update() accepts jukeRequests, which consist in a jukeStateRequest and any other
 // information that may be required. Members will be added as needed.
 type jukeRequest struct {
-	state jukeStateRequest
+	state         jukeStateRequest // request type
+	progressX     int              // x value of the PROGRESS_CHANGE event request
+	progressWidth int              // width progressbar on PROGRESS_CHANGE request
 }
 
 // Variable rate at which juke will poll MPD, in ms
 const (
-	END_POLLING = 0
+	END_POLLING     = 0
 	PLAYING_POLLING = 500
-	PAUSED_POLLING = 750
+	PAUSED_POLLING  = 750
 	STOPPED_POLLING = 1000
 )
 
@@ -177,6 +182,29 @@ func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
 					currentState = CONNECTED_AND_STOPPED
 				}
 
+			case PROGRESS_CHANGE:
+
+				if currentState > CONNECTED_AND_STOPPED {
+
+					if status, errStatus := mpdConnection.Status(); errStatus != nil {
+						fmt.Println("bad", errStatus) // TODO - Make this better
+					} else {
+						song, intErr1 := strconv.Atoi(status["song"])
+						length, intErr2 := strconv.Atoi(strings.SplitN(status["time"], ":", 2)[1])
+						if intErr1 != nil || intErr2 != nil {
+							fmt.Println("bad", intErr1, intErr2) // TODO - Make this better
+						} else {
+							seektime := int(float64(request.progressX) / float64(request.progressWidth) * float64(length))
+							if seekErr := mpdConnection.Seek(song, seektime); seekErr != nil {
+								fmt.Println("bad", seekErr) // TODO - Make this better
+							} else {
+								ui.SetProgressBarTime(strconv.Itoa(seektime) + ":" + strconv.Itoa(length))
+							}
+						}
+					} // end status error check
+
+				} // end is not stopped
+
 			} // end request switch
 
 		} // end if not connected
@@ -201,7 +229,7 @@ func poll(updateChannel chan *jukeRequest, pollChannel chan int) {
 	var rate int
 
 	for {
-		updateChannel <- &jukeRequest{state:POLL_REFREASH}
+		updateChannel <- &jukeRequest{state: POLL_REFREASH}
 
 		rate = <-pollChannel
 		if rate == END_POLLING {

@@ -2,7 +2,9 @@ package ui
 
 import (
 	"fmt"
+	"github.com/mattn/go-gtk/gdk"
 	"github.com/mattn/go-gtk/glib"
+	"unsafe"
 )
 
 func callBackCheckandCheckforError(f func() error, cntx *glib.CallbackContext) {
@@ -57,3 +59,18 @@ func StopClick(f func() error) {
 	})
 
 } // end StopClick
+
+// ProgressBarClick will bind to the "click" even on the progress bar.
+func ProgressBarClick(f func(int, int) error) {
+
+	progressBarEvent.Connect("button_press_event", func(cntx *glib.CallbackContext) {
+		arg := cntx.Args(0)
+		eventButton := *(**gdk.EventButton)(unsafe.Pointer(&arg))
+		if err := f(int(eventButton.X), progressBar.GetAllocation().Width); err != nil {
+			fmt.Printf("Juke UI - Error: %v\n", err)
+			// TODO - investigate the error with this line
+			//fmt.Printf("Juke UI - Error Context: %s\n", cntx.Data().(string))
+		}
+	})
+
+} // end ProgressBarClick

@@ -50,6 +50,7 @@ var (
 	currentAlbumArt  *gtk.Image       // The current song's album artwork
 	currentSongTitle *gtk.Label       // The current song's labeling
 	progressBar      *gtk.ProgressBar // Progress bar for song
+	progressBarEvent *gtk.EventBox    // Progress bar eventbox (for click events)
 )
 
 // MainLoop runs the GUI toolkit's main loop.
@@ -147,12 +148,14 @@ func InitInterface() {
 
 	// Song progress bar:
 	progressBar = gtk.NewProgressBar()
+	progressBarEvent = gtk.NewEventBox()
 	progressBar.SetOrientation(gtk.PROGRESS_LEFT_TO_RIGHT)
 	progressBar.SetText(STOPPED_OR_DC_PROGRESS)
 	progressBar.SetFraction(0)
 	progressBar.SetPulseStep(0.05)
 	//progressBar.SetEllipsize(0.05) // TODO - Implement this (maybe)
-	progressAndControls.PackStart(progressBar, false, false, 0)
+	progressBarEvent.Add(progressBar)
+	progressAndControls.PackStart(progressBarEvent, false, false, 0)
 
 	// Current song labeling:
 	currentSongTitleAlign := gtk.NewAlignment(0, 0, 0, 1)
