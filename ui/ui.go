@@ -6,6 +6,7 @@ package ui
 
 import (
 	"github.com/mattn/go-gtk/gdk"
+	"github.com/mattn/go-gtk/gdkpixbuf"
 	"github.com/mattn/go-gtk/glib"
 	"github.com/mattn/go-gtk/gtk"
 	"strconv"
@@ -41,16 +42,23 @@ const (
 	STOPPED_OR_DC_PROGRESS     string = " "
 )
 
+// Constant pixmap paths:
+const (
+	NO_COVER_ARTWORK string = "/usr/share/pixmaps/juke/no_cover.png"
+)
+
 // Global referances for all "updating" GUI elements.
 var (
-	window           *gtk.Window      // Main window
-	leftControls     [2]*gtk.Button   // The 2 shuffle/repeat buttons
-	playBackControls [4]*gtk.Button   // The 4 playback buttons
-	rightControls    [2]*gtk.Button   // The 2 connection/volume buttons
-	currentAlbumArt  *gtk.Image       // The current song's album artwork
-	currentSongTitle *gtk.Label       // The current song's labeling
-	progressBar      *gtk.ProgressBar // Progress bar for song
-	progressBarEvent *gtk.EventBox    // Progress bar eventbox (for click events)
+	window              *gtk.Window      // Main window
+	leftControls        [2]*gtk.Button   // The 2 shuffle/repeat buttons
+	playBackControls    [4]*gtk.Button   // The 4 playback buttons
+	rightControls       [2]*gtk.Button   // The 2 connection/volume buttons
+	controlsSize        int              // The height of the controls (for current albumart resizing)
+	currentAlbumArt     *gtk.Image       // The current song's album artwork
+	currentAlbumArtPath string           // The current song's album artwork
+	currentSongTitle    *gtk.Label       // The current song's labeling
+	progressBar         *gtk.ProgressBar // Progress bar for song
+	progressBarEvent    *gtk.EventBox    // Progress bar eventbox (for click events)
 )
 
 // MainLoop runs the GUI toolkit's main loop.
@@ -143,8 +151,16 @@ func InitInterface() {
 	controls := gtk.NewHBox(false, 0)
 
 	// Current album artwork:
-	currentAlbumArt = gtk.NewImageFromFile("/home/chuck/Code/go/src/github.com/idealeric/juke/ui/images/noCover.png") // TODO - Implement changing albumartwork
-	bottomStatusBar.PackStart(currentAlbumArt, false, false, 0)
+	currentAlbumBorder := gtk.NewEventBox()
+	currentAlbumBorder.ModifyBG(gtk.STATE_NORMAL, gdk.NewColor("#999"))
+	currentAlbumSpace := gtk.NewEventBox()
+	currentAlbumSpace.SetBorderWidth(1)
+	currentAlbumArt = gtk.NewImage()
+	currentAlbumArt.SetNoShowAll(true) // This allows manual display of the album art so that the proper size of the controls can be determined.
+	currentAlbumArt.Hide()             // Hidden as well. ^^
+	currentAlbumSpace.Add(currentAlbumArt)
+	currentAlbumBorder.Add(currentAlbumSpace)
+	bottomStatusBar.PackStart(currentAlbumBorder, false, false, 0)
 
 	// Song progress bar:
 	progressBar = gtk.NewProgressBar()
@@ -233,7 +249,44 @@ func InitInterface() {
 	window.Add(mainBox)
 	window.ShowAll()
 
+	// Firstly determine the height of the controls (theme dependant)
+	// and then show the album art at that size. (Minus 2 for border)
+	controlsSize = progressAndControls.GetAllocation().Height - 2
+	currentAlbumArtPath = ""
+	SetCurrentAlbumArt(NO_COVER_ARTWORK)
+	currentAlbumArt.Show()
+
 } // end Init
+
+// SetCurrentAlbumArt sets the current album artwork to the image specified by path.
+func SetCurrentAlbumArt(path string) {
+
+	// Since this function is called often (at least as often as MPD is polled)
+	// and it is a relatively expensive operation, this safety value prevents
+	// it from being run too often. It only needs to run when there is work to
+	// be done (as in there is new albumart to load and scale).
+	if currentAlbumArtPath == path {
+		return
+	}
+	currentAlbumArtPath = path
+
+	pbuf, pbufErr := gdkpixbuf.NewFromFile(path)
+	if pbufErr == nil {
+		height, width, biggerDem := float64(pbuf.GetHeight()), float64(pbuf.GetWidth()), 0.0
+		if height > width {
+			biggerDem = height
+		} else {
+			biggerDem = width
+		}
+		currentAlbumArt.SetFromPixbuf(
+			gdkpixbuf.ScaleSimple(
+				pbuf,
+				int(width / biggerDem * float64(controlsSize)),
+				int(height / biggerDem * float64(controlsSize)),
+				gdkpixbuf.INTERP_BILINEAR))
+	}
+
+} // end SetCurrentAlbumArt
 
 // SetPlayPause changes the image on the play button based on the boolean argument. True will
 // display a pause image, while false will display a play image.

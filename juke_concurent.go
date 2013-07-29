@@ -90,6 +90,7 @@ func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
 				} else if status["state"] == "stop" {
 					ui.SetPlayPause(false)
 					ui.SetCurrentSongStopped()
+					ui.SetCurrentAlbumArt(ui.NO_COVER_ARTWORK)
 					ui.SetProgressBarTimeStoppedOrDisconnected()
 					currentState = CONNECTED_AND_STOPPED
 					pollChannel <- STOPPED_POLLING
@@ -110,6 +111,7 @@ func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
 						fmt.Println("bad", erro) // TODO - Make this better
 					} else {
 						ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
+						ui.SetCurrentAlbumArt(albumArtFilename(curSong["file"]))
 						totalTime, errTotalTime := strconv.Atoi(curSong["Time"]);
 						curTime, errCurTime := strconv.Atoi(strings.SplitN(status["time"], ":", 2)[0]);
 						if errTotalTime != nil || errCurTime != nil {
@@ -138,6 +140,7 @@ func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
 						fmt.Println("bad", erro) // TODO - Make this better
 					} else {
 						ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
+						ui.SetCurrentAlbumArt(albumArtFilename(curSong["file"]))
 						if totalTime, errTotalTime := strconv.Atoi(curSong["Time"]); errTotalTime != nil {
 							fmt.Println("bad", errTotalTime) // TODO - Make this better
 						} else {
@@ -174,6 +177,7 @@ func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
 							fmt.Println("bad", erro) // TODO - Make this better
 						} else {
 							ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
+							ui.SetCurrentAlbumArt(albumArtFilename(curSong["file"]))
 							if totalTime, errTotalTime := strconv.Atoi(curSong["Time"]); errTotalTime != nil {
 								fmt.Println("bad", errTotalTime) // TODO - Make this better
 							} else {
@@ -191,6 +195,7 @@ func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
 				} else {
 					ui.SetPlayPause(false)
 					ui.SetCurrentSongStopped()
+					ui.SetCurrentAlbumArt(ui.NO_COVER_ARTWORK)
 					ui.SetProgressBarTimeStoppedOrDisconnected()
 					currentState = CONNECTED_AND_STOPPED
 				}
