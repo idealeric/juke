@@ -112,8 +112,8 @@ func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
 					} else {
 						ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
 						ui.SetCurrentAlbumArt(albumArtFilename(curSong["file"]))
-						totalTime, errTotalTime := strconv.Atoi(curSong["Time"]);
-						curTime, errCurTime := strconv.Atoi(strings.SplitN(status["time"], ":", 2)[0]);
+						totalTime, errTotalTime := strconv.Atoi(curSong["Time"])
+						curTime, errCurTime := strconv.Atoi(strings.SplitN(status["time"], ":", 2)[0])
 						if errTotalTime != nil || errCurTime != nil {
 							fmt.Println("bad", errTotalTime, errCurTime) // TODO - Make this better
 						} else {

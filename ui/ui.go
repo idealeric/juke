@@ -131,8 +131,8 @@ func InitInterface() {
 	// Initialize a window.
 	window = gtk.NewWindow(gtk.WINDOW_TOPLEVEL)
 	window.SetPosition(gtk.WIN_POS_CENTER)
-	window.SetIconName("gtk-dialog-info") // TODO - Make an icon and set it.
-	window.SetSizeRequest(800, -1)        // TODO - Remember size
+	window.SetIconFromFile("/usr/share/pixmaps/juke/juke.png")
+	window.SetSizeRequest(800, -1) // TODO - Remember size
 	window.SetTitle(NOT_CONNECTED_WINDOW_TITLE)
 	window.SetBorderWidth(8)
 
