@@ -44,6 +44,7 @@ const (
 
 // Constant pixmap paths:
 const (
+	ICON             string = "/usr/share/pixmaps/juke/juke.png"
 	NO_COVER_ARTWORK string = "/usr/share/pixmaps/juke/no_cover.png"
 )
 
@@ -131,7 +132,7 @@ func InitInterface() {
 	// Initialize a window.
 	window = gtk.NewWindow(gtk.WINDOW_TOPLEVEL)
 	window.SetPosition(gtk.WIN_POS_CENTER)
-	window.SetIconFromFile("/usr/share/pixmaps/juke/juke.png")
+	window.SetIconFromFile(ICON)
 	window.SetSizeRequest(800, -1) // TODO - Remember size
 	window.SetTitle(NOT_CONNECTED_WINDOW_TITLE)
 	window.SetBorderWidth(8)
