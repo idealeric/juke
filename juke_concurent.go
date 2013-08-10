@@ -8,7 +8,7 @@ package main
 
 import (
 	"code.google.com/p/gompd/mpd"
-	"fmt"
+	"github.com/idealeric/juke/log"
 	"github.com/idealeric/juke/ui"
 	"strconv"
 	"strings"
@@ -64,11 +64,11 @@ const (
 func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
 
 	var currentState jukeState = NOT_CONNECTED
-	mpdConnection, err := mpd.Dial("tcp", "127.0.0.1:6600")
+	mpdConnection, errDial := mpd.Dial("tcp", "127.0.0.1:6600")
 
-	if err != nil {
-		fmt.Println("Could not establish MPD connection.", err) // TODO - Make this better
-		return // TODO - we need connectionless operation
+	if errDial != nil {
+		// TODO - we need connectionless operation
+		log.ErrorOut("update()", "Could not establish MPD connection ("+errDial.Error()+").")
 	}
 
 	// On successful connection, init polling.
@@ -86,7 +86,7 @@ func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
 			case POLL_REFREASH:
 
 				if status, errStatus := mpdConnection.Status(); errStatus != nil {
-					fmt.Println("bad", errStatus) // TODO - Make this better
+					log.ErrorReport("update() POLL_REFREASH", "Could not establish MPD status ("+errStatus.Error()+").")
 				} else if status["state"] == "stop" {
 					ui.SetPlayPause(false)
 					ui.SetCurrentSongStopped()
@@ -107,15 +107,17 @@ func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
 					}
 
 					// In cases of both pause and play, update the currrent song.
-					if curSong, erro := mpdConnection.CurrentSong(); erro != nil {
-						fmt.Println("bad", erro) // TODO - Make this better
+					if curSong, errCurSong := mpdConnection.CurrentSong(); errCurSong != nil {
+						log.ErrorReport("update() POLL_REFREASH", "Could not establish MPD current song ("+errCurSong.Error()+").")
 					} else {
 						ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
 						ui.SetCurrentAlbumArt(albumArtFilename(curSong["file"]))
 						totalTime, errTotalTime := strconv.Atoi(curSong["Time"])
 						curTime, errCurTime := strconv.Atoi(strings.SplitN(status["time"], ":", 2)[0])
-						if errTotalTime != nil || errCurTime != nil {
-							fmt.Println("bad", errTotalTime, errCurTime) // TODO - Make this better
+						if errTotalTime != nil {
+							log.ErrorReport("update() POLL_REFREASH", "Could not convert current song total time ("+errTotalTime.Error()+").")
+						} else if errCurTime != nil {
+							log.ErrorReport("update() POLL_REFREASH", "Could not convert current song time ("+errCurTime.Error()+").")
 						} else {
 							ui.SetProgressBarTime(curTime, totalTime)
 						}
@@ -127,22 +129,22 @@ func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
 
 				if currentState > CONNECTED_AND_STOPPED {
 					if request.state == PREVIOUS_TRACK {
-						if err := mpdConnection.Previous(); err != nil {
-							fmt.Println("bad", err) // TODO - Make this better
+						if errPrev := mpdConnection.Previous(); errPrev != nil {
+							log.ErrorReport("update() PREVIOUS_TRACK", "Could not mpd.Previous() ("+errPrev.Error()+").")
 						}
 					} else { // NEXT_TRACK
-						if err := mpdConnection.Next(); err != nil {
-							fmt.Println("bad", err) // TODO - Make this better
+						if errNext := mpdConnection.Next(); errNext != nil {
+							log.ErrorReport("update() NEXT_TRACK", "Could not mpd.Next() ("+errNext.Error()+").")
 						}
 					}
 
-					if curSong, erro := mpdConnection.CurrentSong(); erro != nil {
-						fmt.Println("bad", erro) // TODO - Make this better
+					if curSong, errCurSong := mpdConnection.CurrentSong(); errCurSong != nil {
+						log.ErrorReport("update() NEXT/PREV_TRACK", "Could not establish current song ("+errCurSong.Error()+").")
 					} else {
 						ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
 						ui.SetCurrentAlbumArt(albumArtFilename(curSong["file"]))
 						if totalTime, errTotalTime := strconv.Atoi(curSong["Time"]); errTotalTime != nil {
-							fmt.Println("bad", errTotalTime) // TODO - Make this better
+							log.ErrorReport("update() NEXT/PREV_TRACK", "Could not convert current song total time ("+errTotalTime.Error()+").")
 						} else {
 							ui.SetProgressBarTime(0, totalTime)
 						}
@@ -152,34 +154,34 @@ func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
 			case PLAY_OR_PAUSE:
 
 				if currentState == CONNECTED_AND_PLAYING {
-					if err := mpdConnection.Pause(true); err != nil {
-						fmt.Println("bad", err) // TODO - Make this better
+					if errPause := mpdConnection.Pause(true); errPause != nil {
+						log.ErrorReport("update() PLAY_OR_PAUSE", "Could not mpd.Pause(true) ("+errPause.Error()+").")
 					} else {
 						ui.SetPlayPause(false)
 						currentState = CONNECTED_AND_PAUSED
 					}
 				} else if currentState == CONNECTED_AND_PAUSED {
-					if err := mpdConnection.Pause(false); err != nil {
-						fmt.Println("bad", err) // TODO - Make this better
+					if errPause := mpdConnection.Pause(false); errPause != nil {
+						log.ErrorReport("update() PLAY_OR_PAUSE", "Could not mpd.Pause(false) ("+errPause.Error()+").")
 					} else {
 						ui.SetPlayPause(true)
 						currentState = CONNECTED_AND_PLAYING
 					}
 				} else if currentState == CONNECTED_AND_STOPPED {
-					if err := mpdConnection.PlayId(-1); err != nil {
-						fmt.Println("bad", err) // TODO - Make this better
+					if errReplay := mpdConnection.PlayId(-1); errReplay != nil {
+						log.ErrorReport("update() PLAY_OR_PAUSE", "Could not mpd.PlayId(-1) ("+errReplay.Error()+").")
 					} else {
 
 						ui.SetPlayPause(true)
 						currentState = CONNECTED_AND_PLAYING
 
-						if curSong, erro := mpdConnection.CurrentSong(); erro != nil {
-							fmt.Println("bad", erro) // TODO - Make this better
+						if curSong, errCurSong := mpdConnection.CurrentSong(); errCurSong != nil {
+							log.ErrorReport("update() PLAY_OR_PAUSE", "Could not establish current song ("+errCurSong.Error()+").")
 						} else {
 							ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
 							ui.SetCurrentAlbumArt(albumArtFilename(curSong["file"]))
 							if totalTime, errTotalTime := strconv.Atoi(curSong["Time"]); errTotalTime != nil {
-								fmt.Println("bad", errTotalTime) // TODO - Make this better
+								log.ErrorReport("update() PLAY_OR_PAUSE", "Could not convert current song total time ("+errTotalTime.Error()+").")
 							} else {
 								ui.SetProgressBarTime(0, totalTime)
 							}
@@ -190,8 +192,8 @@ func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
 
 			case STOP:
 
-				if err := mpdConnection.Stop(); err != nil {
-					fmt.Println("bad", err) // TODO - Make this better
+				if errStop := mpdConnection.Stop(); errStop != nil {
+					log.ErrorReport("update() STOP", "Could not mpd.Stop() ("+errStop.Error()+").")
 				} else {
 					ui.SetPlayPause(false)
 					ui.SetCurrentSongStopped()
@@ -205,16 +207,18 @@ func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
 				if currentState > CONNECTED_AND_STOPPED {
 
 					if status, errStatus := mpdConnection.Status(); errStatus != nil {
-						fmt.Println("bad", errStatus) // TODO - Make this better
+						log.ErrorReport("update() PROGRESS_CHANGE", "Could not establish MPD status ("+errStatus.Error()+").")
 					} else {
 						song, intErr1 := strconv.Atoi(status["song"])
 						length, intErr2 := strconv.Atoi(strings.SplitN(status["time"], ":", 2)[1])
-						if intErr1 != nil || intErr2 != nil {
-							fmt.Println("bad", intErr1, intErr2) // TODO - Make this better
+						if intErr1 != nil {
+							log.ErrorReport("update() PROGRESS_CHANGE", "Could not convert song ("+intErr1.Error()+").")
+						} else if intErr2 != nil {
+							log.ErrorReport("update() PROGRESS_CHANGE", "Could not convert length ("+intErr2.Error()+").")
 						} else {
 							seektime := int(float64(request.progressX) / float64(request.progressWidth) * float64(length))
 							if seekErr := mpdConnection.Seek(song, seektime); seekErr != nil {
-								fmt.Println("bad", seekErr) // TODO - Make this better
+								log.ErrorReport("update() PROGRESS_CHANGE", "Could not mpd.Seek() ("+seekErr.Error()+").")
 							} else {
 								ui.SetProgressBarTime(seektime, length)
 							}
@@ -235,8 +239,8 @@ func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
 
 	// Close the MPD connection, Juke is about to end:
 	if currentState > NOT_CONNECTED {
-		if err := mpdConnection.Close(); err != nil {
-			fmt.Println("bad", err) // TODO - Make this better
+		if errClose := mpdConnection.Close(); errClose != nil {
+			log.ErrorReport("update()", "Could not mpd.Close() ("+errClose.Error()+").")
 		}
 	}
 

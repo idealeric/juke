@@ -1,7 +1,7 @@
 package ui
 
 import (
-	"fmt"
+	"github.com/idealeric/juke/log"
 	"github.com/mattn/go-gtk/gdk"
 	"github.com/mattn/go-gtk/glib"
 	"unsafe"
@@ -9,9 +9,7 @@ import (
 
 func callBackCheckandCheckforError(f func() error, cntx *glib.CallbackContext) {
 	if err := f(); err != nil {
-		fmt.Printf("Juke UI - Error: %v\n", err)
-		// TODO - investigate the error with this line
-		//fmt.Printf("Juke UI - Error Context: %s\n", cntx.Data().(string))
+		log.ErrorReport("UI callBackCheckandCheckforError()", err.Error()+".")
 	}
 } // end callBackCheckandCheckforError
 
@@ -67,9 +65,7 @@ func ProgressBarClick(f func(int, int) error) {
 		arg := cntx.Args(0)
 		eventButton := *(**gdk.EventButton)(unsafe.Pointer(&arg))
 		if err := f(int(eventButton.X), progressBar.GetAllocation().Width); err != nil {
-			fmt.Printf("Juke UI - Error: %v\n", err)
-			// TODO - investigate the error with this line
-			//fmt.Printf("Juke UI - Error Context: %s\n", cntx.Data().(string))
+			log.ErrorReport("UI callBackCheckandCheckforError()", err.Error()+".")
 		}
 	})
 

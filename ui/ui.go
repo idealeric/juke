@@ -282,8 +282,8 @@ func SetCurrentAlbumArt(path string) {
 		currentAlbumArt.SetFromPixbuf(
 			gdkpixbuf.ScaleSimple(
 				pbuf,
-				int(width / biggerDem * float64(controlsSize)),
-				int(height / biggerDem * float64(controlsSize)),
+				int(width/biggerDem*float64(controlsSize)),
+				int(height/biggerDem*float64(controlsSize)),
 				gdkpixbuf.INTERP_BILINEAR))
 	}
 

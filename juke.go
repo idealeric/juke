@@ -20,7 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 package main
 
 import (
-	"fmt"
+	"github.com/idealeric/juke/log"
 	"github.com/idealeric/juke/ui"
 	"os"
 	"os/user"
@@ -34,7 +34,7 @@ func albumArtFilename(subDir string) string {
 	// TODO - enable music directory to be configured
 	usr, err := user.Current()
 	if err != nil || subDir == "" {
-		fmt.Println("bad", err) // TODO - make this better
+		log.ErrorReport("albumArtFilename()", "Either sub directory is reported as empty or user.Current() failed.")
 		return ui.NO_COVER_ARTWORK
 	}
 
