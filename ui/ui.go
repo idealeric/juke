@@ -39,7 +39,7 @@ const (
 	NOT_CONNECTED_SONG_LABEL   string = "<span size=\"x-large\" font_weight=\"bold\">Stopped</span>\nNot connected."
 	STOPPED_WINDOW_TITLE       string = "Stopped [Juke]"
 	STOPPED_SONG_LABEL         string = "<span size=\"x-large\" font_weight=\"bold\">Stopped</span>\nConnected."
-	STOPPED_OR_DC_PROGRESS     string = " "
+	STOPPED_OR_DC_PROGRESS     string = "0:00 / 0:00"
 )
 
 // Constant pixmap paths:

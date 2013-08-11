@@ -47,4 +47,11 @@ func initCallBacks(updateChannel chan *jukeRequest) {
 		return nil
 	})
 
+	ui.ConnectionClick(func() error {
+		go func() {
+			updateChannel <- &jukeRequest{state: CONNECTION_REFREASH}
+		}()
+		return nil
+	})
+
 } // end initCallbacks

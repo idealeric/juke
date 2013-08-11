@@ -58,7 +58,16 @@ func StopClick(f func() error) {
 
 } // end StopClick
 
-// ProgressBarClick will bind to the "click" even on the progress bar.
+// ConnectionClick will bind to the "click" event on the connection button.
+func ConnectionClick(f func() error) {
+
+	rightControls[CONNECTION_BUTTON].Connect("released", func(cntx *glib.CallbackContext) {
+		callBackCheckandCheckforError(f, cntx)
+	})
+
+} // end ConnectionClick
+
+// ProgressBarClick will bind to the "click" event on the progress bar.
 func ProgressBarClick(f func(int, int) error) {
 
 	progressBarEvent.Connect("button_press_event", func(cntx *glib.CallbackContext) {

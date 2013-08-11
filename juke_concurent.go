@@ -36,6 +36,7 @@ const (
 	PLAY_OR_PAUSE
 	STOP
 	PROGRESS_CHANGE
+	CONNECTION_REFREASH
 )
 
 // update() accepts jukeRequests, which consist in a jukeStateRequest and any other
@@ -63,173 +64,198 @@ const (
 // for general update.
 func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
 
-	var currentState jukeState = NOT_CONNECTED
-	mpdConnection, errDial := mpd.Dial("tcp", "127.0.0.1:6600")
+	var currentState  jukeState   = NOT_CONNECTED
+	var mpdConnection *mpd.Client = nil
+	var errDial       error       = nil
 
-	if errDial != nil {
-		// TODO - we need connectionless operation
-		log.ErrorOut("update()", "Could not establish MPD connection ("+errDial.Error()+").")
-	}
-
-	// On successful connection, init polling.
-	go poll(stateRequestChannel, pollChannel)
-	// This is a bogus state until we can determine our real state from our first polling.
-	currentState = CONNECTED_AND_UNKNOWN
+	go func() {
+		// Juke needs to establish an initial connection.
+		// Thus, a thread is spawn just to send an initial CONNECTION_REFREASH.
+		stateRequestChannel <- &jukeRequest{state: CONNECTION_REFREASH}
+	}()
 
 	for request := range stateRequestChannel {
 
+		if currentState == NOT_CONNECTED {
+
+			if request.state == CONNECTION_REFREASH {
+				// If the user requests a connection and juke is unconnected, then juke
+				// attempts to reconnect.
+				mpdConnection, errDial = mpd.Dial("tcp", "127.0.0.1:6600")
+				if errDial != nil {
+					log.ErrorReport("update()", "Could not establish MPD connection ("+errDial.Error()+").")
+				} else {
+					// On successful connection, init polling and an unknown state.
+					go poll(stateRequestChannel, pollChannel)
+					// The real state is determined from first poll.
+					// All operations are now safe (most state requests have checks).
+					currentState = CONNECTED_AND_UNKNOWN
+				}
+			}
+
+			// In either case, Juke is either ignoring this request (because it has
+			// no connection) or it has reconnected and there is nothing left to do.
+			continue
+
+		} // end not conneted
+
 		ui.Lock()
 
-		if currentState > NOT_CONNECTED {
-			switch request.state {
+		switch request.state {
 
-			case POLL_REFREASH:
+		case POLL_REFREASH:
 
-				if status, errStatus := mpdConnection.Status(); errStatus != nil {
-					log.ErrorReport("update() POLL_REFREASH", "Could not establish MPD status ("+errStatus.Error()+").")
-				} else if status["state"] == "stop" {
+			if status, errStatus := mpdConnection.Status(); errStatus != nil {
+				// Assume this means a lost connection.
+				log.ErrorReport("update() POLL_REFREASH", "Could not establish MPD status ("+errStatus.Error()+").")
+				log.MessageReport("update() POLL_REFREASH", "Assuming connection has been terminated.")
+				ui.SetPlayPause(false)
+				ui.SetCurrentSongNotConnected()
+				ui.SetCurrentAlbumArt(ui.NO_COVER_ARTWORK)
+				ui.SetProgressBarTimeStoppedOrDisconnected()
+				currentState = NOT_CONNECTED
+				pollChannel <- END_POLLING
+			} else if status["state"] == "stop" {
+				ui.SetPlayPause(false)
+				ui.SetCurrentSongStopped()
+				ui.SetCurrentAlbumArt(ui.NO_COVER_ARTWORK)
+				ui.SetProgressBarTimeStoppedOrDisconnected()
+				currentState = CONNECTED_AND_STOPPED
+				pollChannel <- STOPPED_POLLING
+			} else {
+
+				if status["state"] == "pause" {
 					ui.SetPlayPause(false)
-					ui.SetCurrentSongStopped()
-					ui.SetCurrentAlbumArt(ui.NO_COVER_ARTWORK)
-					ui.SetProgressBarTimeStoppedOrDisconnected()
-					currentState = CONNECTED_AND_STOPPED
-					pollChannel <- STOPPED_POLLING
-				} else {
-
-					if status["state"] == "pause" {
-						ui.SetPlayPause(false)
-						currentState = CONNECTED_AND_PAUSED
-						pollChannel <- PAUSED_POLLING
-					} else if status["state"] == "play" {
-						ui.SetPlayPause(true)
-						currentState = CONNECTED_AND_PLAYING
-						pollChannel <- PLAYING_POLLING
-					}
-
-					// In cases of both pause and play, update the currrent song.
-					if curSong, errCurSong := mpdConnection.CurrentSong(); errCurSong != nil {
-						log.ErrorReport("update() POLL_REFREASH", "Could not establish MPD current song ("+errCurSong.Error()+").")
-					} else {
-						ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
-						ui.SetCurrentAlbumArt(albumArtFilename(curSong["file"]))
-						totalTime, errTotalTime := strconv.Atoi(curSong["Time"])
-						curTime, errCurTime := strconv.Atoi(strings.SplitN(status["time"], ":", 2)[0])
-						if errTotalTime != nil {
-							log.ErrorReport("update() POLL_REFREASH", "Could not convert current song total time ("+errTotalTime.Error()+").")
-						} else if errCurTime != nil {
-							log.ErrorReport("update() POLL_REFREASH", "Could not convert current song time ("+errCurTime.Error()+").")
-						} else {
-							ui.SetProgressBarTime(curTime, totalTime)
-						}
-					}
-
+					currentState = CONNECTED_AND_PAUSED
+					pollChannel <- PAUSED_POLLING
+				} else if status["state"] == "play" {
+					ui.SetPlayPause(true)
+					currentState = CONNECTED_AND_PLAYING
+					pollChannel <- PLAYING_POLLING
 				}
 
-			case NEXT_TRACK, PREVIOUS_TRACK:
-
-				if currentState > CONNECTED_AND_STOPPED {
-					if request.state == PREVIOUS_TRACK {
-						if errPrev := mpdConnection.Previous(); errPrev != nil {
-							log.ErrorReport("update() PREVIOUS_TRACK", "Could not mpd.Previous() ("+errPrev.Error()+").")
-						}
-					} else { // NEXT_TRACK
-						if errNext := mpdConnection.Next(); errNext != nil {
-							log.ErrorReport("update() NEXT_TRACK", "Could not mpd.Next() ("+errNext.Error()+").")
-						}
+				// In cases of both pause and play, update the currrent song.
+				if curSong, errCurSong := mpdConnection.CurrentSong(); errCurSong != nil {
+					log.ErrorReport("update() POLL_REFREASH", "Could not establish MPD current song ("+errCurSong.Error()+").")
+				} else {
+					ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
+					ui.SetCurrentAlbumArt(albumArtFilename(curSong["file"]))
+					totalTime, errTotalTime := strconv.Atoi(curSong["Time"])
+					curTime, errCurTime := strconv.Atoi(strings.SplitN(status["time"], ":", 2)[0])
+					if errTotalTime != nil {
+						log.ErrorReport("update() POLL_REFREASH", "Could not convert current song total time ("+errTotalTime.Error()+").")
+					} else if errCurTime != nil {
+						log.ErrorReport("update() POLL_REFREASH", "Could not convert current song time ("+errCurTime.Error()+").")
+					} else {
+						ui.SetProgressBarTime(curTime, totalTime)
 					}
+				}
+
+			}
+
+		case NEXT_TRACK, PREVIOUS_TRACK:
+
+			if currentState > CONNECTED_AND_STOPPED {
+				if request.state == PREVIOUS_TRACK {
+					if errPrev := mpdConnection.Previous(); errPrev != nil {
+						log.ErrorReport("update() PREVIOUS_TRACK", "Could not mpd.Previous() ("+errPrev.Error()+").")
+					}
+				} else { // NEXT_TRACK
+					if errNext := mpdConnection.Next(); errNext != nil {
+						log.ErrorReport("update() NEXT_TRACK", "Could not mpd.Next() ("+errNext.Error()+").")
+					}
+				}
+
+				if curSong, errCurSong := mpdConnection.CurrentSong(); errCurSong != nil {
+					log.ErrorReport("update() NEXT/PREV_TRACK", "Could not establish current song ("+errCurSong.Error()+").")
+				} else {
+					ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
+					ui.SetCurrentAlbumArt(albumArtFilename(curSong["file"]))
+					if totalTime, errTotalTime := strconv.Atoi(curSong["Time"]); errTotalTime != nil {
+						log.ErrorReport("update() NEXT/PREV_TRACK", "Could not convert current song total time ("+errTotalTime.Error()+").")
+					} else {
+						ui.SetProgressBarTime(0, totalTime)
+					}
+				}
+			}
+
+		case PLAY_OR_PAUSE:
+
+			if currentState == CONNECTED_AND_PLAYING {
+				if errPause := mpdConnection.Pause(true); errPause != nil {
+					log.ErrorReport("update() PLAY_OR_PAUSE", "Could not mpd.Pause(true) ("+errPause.Error()+").")
+				} else {
+					ui.SetPlayPause(false)
+					currentState = CONNECTED_AND_PAUSED
+				}
+			} else if currentState == CONNECTED_AND_PAUSED {
+				if errPause := mpdConnection.Pause(false); errPause != nil {
+					log.ErrorReport("update() PLAY_OR_PAUSE", "Could not mpd.Pause(false) ("+errPause.Error()+").")
+				} else {
+					ui.SetPlayPause(true)
+					currentState = CONNECTED_AND_PLAYING
+				}
+			} else if currentState == CONNECTED_AND_STOPPED {
+				if errReplay := mpdConnection.PlayId(-1); errReplay != nil {
+					log.ErrorReport("update() PLAY_OR_PAUSE", "Could not mpd.PlayId(-1) ("+errReplay.Error()+").")
+				} else {
+
+					ui.SetPlayPause(true)
+					currentState = CONNECTED_AND_PLAYING
 
 					if curSong, errCurSong := mpdConnection.CurrentSong(); errCurSong != nil {
-						log.ErrorReport("update() NEXT/PREV_TRACK", "Could not establish current song ("+errCurSong.Error()+").")
+						log.ErrorReport("update() PLAY_OR_PAUSE", "Could not establish current song ("+errCurSong.Error()+").")
 					} else {
 						ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
 						ui.SetCurrentAlbumArt(albumArtFilename(curSong["file"]))
 						if totalTime, errTotalTime := strconv.Atoi(curSong["Time"]); errTotalTime != nil {
-							log.ErrorReport("update() NEXT/PREV_TRACK", "Could not convert current song total time ("+errTotalTime.Error()+").")
+							log.ErrorReport("update() PLAY_OR_PAUSE", "Could not convert current song total time ("+errTotalTime.Error()+").")
 						} else {
 							ui.SetProgressBarTime(0, totalTime)
 						}
 					}
+
 				}
+			} // end play/pause state control conditional
 
-			case PLAY_OR_PAUSE:
+		case STOP:
 
-				if currentState == CONNECTED_AND_PLAYING {
-					if errPause := mpdConnection.Pause(true); errPause != nil {
-						log.ErrorReport("update() PLAY_OR_PAUSE", "Could not mpd.Pause(true) ("+errPause.Error()+").")
-					} else {
-						ui.SetPlayPause(false)
-						currentState = CONNECTED_AND_PAUSED
-					}
-				} else if currentState == CONNECTED_AND_PAUSED {
-					if errPause := mpdConnection.Pause(false); errPause != nil {
-						log.ErrorReport("update() PLAY_OR_PAUSE", "Could not mpd.Pause(false) ("+errPause.Error()+").")
-					} else {
-						ui.SetPlayPause(true)
-						currentState = CONNECTED_AND_PLAYING
-					}
-				} else if currentState == CONNECTED_AND_STOPPED {
-					if errReplay := mpdConnection.PlayId(-1); errReplay != nil {
-						log.ErrorReport("update() PLAY_OR_PAUSE", "Could not mpd.PlayId(-1) ("+errReplay.Error()+").")
-					} else {
+			if errStop := mpdConnection.Stop(); errStop != nil {
+				log.ErrorReport("update() STOP", "Could not mpd.Stop() ("+errStop.Error()+").")
+			} else {
+				ui.SetPlayPause(false)
+				ui.SetCurrentSongStopped()
+				ui.SetCurrentAlbumArt(ui.NO_COVER_ARTWORK)
+				ui.SetProgressBarTimeStoppedOrDisconnected()
+				currentState = CONNECTED_AND_STOPPED
+			}
 
-						ui.SetPlayPause(true)
-						currentState = CONNECTED_AND_PLAYING
+		case PROGRESS_CHANGE:
 
-						if curSong, errCurSong := mpdConnection.CurrentSong(); errCurSong != nil {
-							log.ErrorReport("update() PLAY_OR_PAUSE", "Could not establish current song ("+errCurSong.Error()+").")
-						} else {
-							ui.SetCurrentSong(curSong["Title"], curSong["Artist"], curSong["Album"])
-							ui.SetCurrentAlbumArt(albumArtFilename(curSong["file"]))
-							if totalTime, errTotalTime := strconv.Atoi(curSong["Time"]); errTotalTime != nil {
-								log.ErrorReport("update() PLAY_OR_PAUSE", "Could not convert current song total time ("+errTotalTime.Error()+").")
-							} else {
-								ui.SetProgressBarTime(0, totalTime)
-							}
-						}
+			if currentState > CONNECTED_AND_STOPPED {
 
-					}
-				} // end play/pause state control conditional
-
-			case STOP:
-
-				if errStop := mpdConnection.Stop(); errStop != nil {
-					log.ErrorReport("update() STOP", "Could not mpd.Stop() ("+errStop.Error()+").")
+				if status, errStatus := mpdConnection.Status(); errStatus != nil {
+					log.ErrorReport("update() PROGRESS_CHANGE", "Could not establish MPD status ("+errStatus.Error()+").")
 				} else {
-					ui.SetPlayPause(false)
-					ui.SetCurrentSongStopped()
-					ui.SetCurrentAlbumArt(ui.NO_COVER_ARTWORK)
-					ui.SetProgressBarTimeStoppedOrDisconnected()
-					currentState = CONNECTED_AND_STOPPED
-				}
-
-			case PROGRESS_CHANGE:
-
-				if currentState > CONNECTED_AND_STOPPED {
-
-					if status, errStatus := mpdConnection.Status(); errStatus != nil {
-						log.ErrorReport("update() PROGRESS_CHANGE", "Could not establish MPD status ("+errStatus.Error()+").")
+					song, intErr1 := strconv.Atoi(status["song"])
+					length, intErr2 := strconv.Atoi(strings.SplitN(status["time"], ":", 2)[1])
+					if intErr1 != nil {
+						log.ErrorReport("update() PROGRESS_CHANGE", "Could not convert song ("+intErr1.Error()+").")
+					} else if intErr2 != nil {
+						log.ErrorReport("update() PROGRESS_CHANGE", "Could not convert length ("+intErr2.Error()+").")
 					} else {
-						song, intErr1 := strconv.Atoi(status["song"])
-						length, intErr2 := strconv.Atoi(strings.SplitN(status["time"], ":", 2)[1])
-						if intErr1 != nil {
-							log.ErrorReport("update() PROGRESS_CHANGE", "Could not convert song ("+intErr1.Error()+").")
-						} else if intErr2 != nil {
-							log.ErrorReport("update() PROGRESS_CHANGE", "Could not convert length ("+intErr2.Error()+").")
+						seektime := int(float64(request.progressX) / float64(request.progressWidth) * float64(length))
+						if seekErr := mpdConnection.Seek(song, seektime); seekErr != nil {
+							log.ErrorReport("update() PROGRESS_CHANGE", "Could not mpd.Seek() ("+seekErr.Error()+").")
 						} else {
-							seektime := int(float64(request.progressX) / float64(request.progressWidth) * float64(length))
-							if seekErr := mpdConnection.Seek(song, seektime); seekErr != nil {
-								log.ErrorReport("update() PROGRESS_CHANGE", "Could not mpd.Seek() ("+seekErr.Error()+").")
-							} else {
-								ui.SetProgressBarTime(seektime, length)
-							}
+							ui.SetProgressBarTime(seektime, length)
 						}
-					} // end status error check
+					}
+				} // end status error check
 
-				} // end is not stopped
+			} // end is not stopped
 
-			} // end request switch
-
-		} // end if not connected
+		} // end request switch
 
 		ui.Unlock()
 
