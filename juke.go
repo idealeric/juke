@@ -2,7 +2,7 @@
 Juke is a front-end, GTK+ client for the Music Playing Deamon.
 
 Copyright: Eric Butler 2013
-Version:   0.1a
+Version:   0.2a
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -57,15 +57,12 @@ func albumArtFilename(subDir string) string {
 // Keep main short and sweet!
 func main() {
 
-	var (
-		updateChannel chan *jukeRequest = make(chan *jukeRequest)
-		pollChannel   chan int          = make(chan int)
-	)
+	var updateChannel chan *jukeRequest = make(chan *jukeRequest)
 
 	ui.InitInterface()
 
 	// Init any concurrent routines:
-	go update(updateChannel, pollChannel)
+	go update(updateChannel)
 
 	// For code tidyness, callbacks are defined in a seperate file.
 	initCallBacks(updateChannel)

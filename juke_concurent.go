@@ -62,11 +62,14 @@ const (
 //	  force an update (button press, etc)
 // The incoming communication is an attempted state change or request
 // for general update.
-func update(stateRequestChannel chan *jukeRequest, pollChannel chan int) {
+func update(stateRequestChannel chan *jukeRequest) {
 
-	var currentState  jukeState   = NOT_CONNECTED
-	var mpdConnection *mpd.Client = nil
-	var errDial       error       = nil
+	var (
+		currentState  jukeState   = NOT_CONNECTED
+		mpdConnection *mpd.Client = nil
+		errDial       error       = nil
+		pollChannel   chan int    = make(chan int)
+	)
 
 	go func() {
 		// Juke needs to establish an initial connection.
