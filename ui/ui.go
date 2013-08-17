@@ -57,6 +57,7 @@ var (
 	currentAlbumArt     *gtk.Image       // The current song's album artwork
 	currentAlbumArtPath string           // The current song's album artwork
 	currentSongTitle    *gtk.Label       // The current song's labeling
+	currentPause        bool             // The current state of the play/pause button.
 	progressBar         *gtk.ProgressBar // Progress bar for song
 	progressBarEvent    *gtk.EventBox    // Progress bar eventbox (for click events)
 )
@@ -207,6 +208,7 @@ func InitInterface() {
 
 	playBackControls[PLAY_PAUSE_BUTTON] = gtk.NewButtonFromStock(gtk.STOCK_MEDIA_PLAY)
 	playBackControls[PLAY_PAUSE_BUTTON].SetImage(gtk.NewImageFromStock(gtk.STOCK_MEDIA_PLAY, gtk.ICON_SIZE_DND))
+	currentPause = false
 
 	playBackControls[STOP_BUTTON] = gtk.NewButtonFromStock(gtk.STOCK_MEDIA_STOP)
 	playBackControls[STOP_BUTTON].SetImage(gtk.NewImageFromStock(gtk.STOCK_MEDIA_STOP, gtk.ICON_SIZE_DND))
@@ -292,10 +294,14 @@ func SetCurrentAlbumArt(path string) {
 // display a pause image, while false will display a play image.
 func SetPlayPause(pause bool) {
 
-	if pause {
+	if pause && !currentPause {
+		// Attempting to pause. Must also NOT be paused.
 		playBackControls[PLAY_PAUSE_BUTTON].SetImage(gtk.NewImageFromStock(gtk.STOCK_MEDIA_PAUSE, gtk.ICON_SIZE_DND))
-	} else {
+		currentPause = true
+	} else if !pause && currentPause {
+		// Attempting to play. Must also NOT be playing.
 		playBackControls[PLAY_PAUSE_BUTTON].SetImage(gtk.NewImageFromStock(gtk.STOCK_MEDIA_PLAY, gtk.ICON_SIZE_DND))
+		currentPause = false
 	}
 
 } // end SetPlayPause
