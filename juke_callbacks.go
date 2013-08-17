@@ -54,4 +54,11 @@ func initCallBacks(updateChannel chan *jukeRequest) {
 		return nil
 	})
 
+	ui.CurrentRowDoubleClick(func(row *ui.CurrentPLRow) error {
+		go func() {
+			updateChannel <- &jukeRequest{state: CHANGE_TRACK, clickedRow: row}
+		}()
+		return nil
+	})
+
 } // end initCallbacks

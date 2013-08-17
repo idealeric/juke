@@ -4,6 +4,7 @@ import (
 	"github.com/idealeric/juke/log"
 	"github.com/mattn/go-gtk/gdk"
 	"github.com/mattn/go-gtk/glib"
+	"github.com/mattn/go-gtk/gtk"
 	"unsafe"
 )
 
@@ -79,3 +80,24 @@ func ProgressBarClick(f func(int, int) error) {
 	})
 
 } // end ProgressBarClick
+
+// CurrentRowDoubleClick will bind to the "double-click" event on a row in
+// the current playlist.
+func CurrentRowDoubleClick(f func(*CurrentPLRow) error) {
+
+	playlistTree.Connect("row-activated", func(cntx *glib.CallbackContext) {
+		var (
+			path *gtk.TreePath
+			iter gtk.TreeIter
+			val  glib.GValue
+			col  *gtk.TreeViewColumn
+		)
+		playlistTree.GetCursor(&path, &col)
+		playlistModel.GetIter(&iter, path)
+		playlistModel.GetValue(&iter, CUR_PL_COL_ID, &val)
+		if err := f(&CurrentPLRow{ID: val.GetInt(), gref: gtk.NewTreeRowReference(playlistModel, path)}); err != nil {
+			log.ErrorReport("UI callBackCheckandCheckforError()", err.Error()+".")
+		}
+	})
+
+} // end CurrentRowDoubleClick

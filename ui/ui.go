@@ -44,23 +44,49 @@ const (
 
 // Constant pixmap paths:
 const (
-	ICON             string = "/usr/share/pixmaps/juke/juke.png"
-	NO_COVER_ARTWORK string = "/usr/share/pixmaps/juke/no_cover.png"
+	ICON              string = "/usr/share/pixmaps/juke/juke.png"
+	NO_COVER_ARTWORK  string = "/usr/share/pixmaps/juke/no_cover.png"
+	CUR_PL_ALBUM_SIZE int    = 20
 )
+
+const (
+	CUR_PL_COL_ID int = iota
+	CUR_PL_COL_ART
+	CUR_PL_COL_NAME
+	CUR_PL_COL_ARTIST
+	CUR_PL_COL_ALBUM
+	NUM_PL_COLS
+)
+
+// CurrentPLRow is an abstraction for other modules to
+// work with visible rows in the current playlist.
+type CurrentPLRow struct {
+	ID          int
+	ArtworkPath string
+	Name        string
+	Artist      string
+	Album       string
+	Bold        bool
+	gref        *gtk.TreeRowReference
+}
 
 // Global referances for all "updating" GUI elements.
 var (
-	window              *gtk.Window      // Main window
-	leftControls        [2]*gtk.Button   // The 2 shuffle/repeat buttons
-	playBackControls    [4]*gtk.Button   // The 4 playback buttons
-	rightControls       [2]*gtk.Button   // The 2 connection/volume buttons
-	controlsSize        int              // The height of the controls (for current albumart resizing)
-	currentAlbumArt     *gtk.Image       // The current song's album artwork
-	currentAlbumArtPath string           // The current song's album artwork
-	currentSongTitle    *gtk.Label       // The current song's labeling
-	currentPause        bool             // The current state of the play/pause button.
-	progressBar         *gtk.ProgressBar // Progress bar for song
-	progressBarEvent    *gtk.EventBox    // Progress bar eventbox (for click events)
+	window              *gtk.Window                  // Main window
+	leftControls        [2]*gtk.Button               // The 2 shuffle/repeat buttons
+	playBackControls    [4]*gtk.Button               // The 4 playback buttons
+	rightControls       [2]*gtk.Button               // The 2 connection/volume buttons
+	controlsSize        int                          // The height of the controls (for current albumart resizing)
+	currentAlbumArt     *gtk.Image                   // The current song's album artwork
+	currentAlbumArtPath string                       // The current song's album artwork
+	currentSongTitle    *gtk.Label                   // The current song's labeling
+	currentPause        bool                         // The current state of the play/pause button.
+	progressBar         *gtk.ProgressBar             // Progress bar for song
+	progressBarEvent    *gtk.EventBox                // Progress bar eventbox (for click events)
+	playlistTree        *gtk.TreeView                // Treeview for the current playlist.
+	playlistModel       *gtk.ListStore               // Model for the current playlist.
+	currentBoldRow      CurrentPLRow                 // Currently bolded row reference.
+	currentArtworks     map[string]*gdkpixbuf.Pixbuf // Hash table for fast artwork lookup.
 )
 
 // MainLoop runs the GUI toolkit's main loop.
@@ -130,6 +156,7 @@ func InitInterface() {
 	glib.ThreadInit(nil)
 	gdk.ThreadsInit()
 	gtk.Init(nil)
+
 	// Initialize a window.
 	window = gtk.NewWindow(gtk.WINDOW_TOPLEVEL)
 	window.SetPosition(gtk.WIN_POS_CENTER)
@@ -143,11 +170,44 @@ func InitInterface() {
 	settings.Set("gtk-button-images", true)
 
 	// Destory window is fired when the user "exits" the window.
-	window.Connect("destroy", func(ctx *glib.CallbackContext) {
-		gtk.MainQuit()
-	})
+	window.Connect("destroy", gtk.MainQuit)
 
-	mainBox := gtk.NewVBox(false, 0)         // Main VBox to glue UI the together
+	mainBox := gtk.NewVBox(false, 8) // Main VBox to glue UI the together
+
+	// Current playlist treeview:
+	currentArtworks = make(map[string]*gdkpixbuf.Pixbuf)
+	playlistTree = gtk.NewTreeView()
+	playlistModel = gtk.NewListStore(gtk.TYPE_INT, gdkpixbuf.GetType(), gtk.TYPE_STRING, gtk.TYPE_STRING, gtk.TYPE_STRING)
+	//playlistTree.SetReorderable(true) // TODO - reordering
+	playlistTree.SetModel(playlistModel)
+	playlistColNames := []string{"ID", "Art", "Name", "Artist", "Album"}
+	playlistCol := gtk.NewTreeViewColumn()
+	playlistCol.SetSpacing(3)
+	playlistCol.SetTitle(playlistColNames[CUR_PL_COL_NAME])
+	playlistCol.SetMinWidth(370) // TODO - Remember sizing.
+	for ci := CUR_PL_COL_NAME; ci < NUM_PL_COLS; ci++ {
+		if ci == CUR_PL_COL_NAME {
+			cellPix := gtk.NewCellRendererPixbuf()
+			playlistCol.PackStart(cellPix, false)
+			playlistCol.AddAttribute(cellPix, "pixbuf", CUR_PL_COL_ART)
+			cellText := gtk.NewCellRendererText()
+			playlistCol.PackStart(cellText, true)
+			playlistCol.AddAttribute(cellText, "markup", CUR_PL_COL_NAME)
+		} else {
+			playlistCol = gtk.NewTreeViewColumnWithAttributes(playlistColNames[ci], gtk.NewCellRendererText(), "markup", ci)
+			playlistCol.SetMinWidth(190)
+		}
+		playlistCol.SetResizable(true)
+		playlistCol.SetSizing(gtk.TREE_VIEW_COLUMN_FIXED) // TODO - Remember sizing.
+		playlistCol.SetClickable(true) // TODO - Make sortable.
+		playlistTree.AppendColumn(playlistCol)
+	}
+	playlistScroll := gtk.NewScrolledWindow(nil, nil)
+	playlistScroll.SetPolicy(gtk.POLICY_AUTOMATIC, gtk.POLICY_ALWAYS)
+	playlistScroll.Add(playlistTree)
+	playlistScroll.SetSizeRequest(-1, 330)
+	mainBox.PackStart(playlistScroll, true, true, 0)
+
 	bottomStatusBar := gtk.NewHBox(false, 8) // Main HBox for albumart, controls and other current stuff
 	progressAndControls := gtk.NewVBox(false, 5)
 	controls := gtk.NewHBox(false, 0)
@@ -341,3 +401,123 @@ func Unlock() {
 	gdk.ThreadsLeave()
 
 } // end Unlock
+
+// AddManyRowstoCurrentPlaylist adds mulitple rows at once.
+// It is designed to be more efficient than adding one row at a time.
+func AddManyRowstoCurrentPlaylist(rows []*CurrentPLRow) {
+
+	playlistTree.SetModel(nil)
+	for _, row := range rows {
+		AddRowtoCurrentPlaylist(row)
+	}
+	playlistTree.SetModel(playlistModel)
+
+} // end AddManyRowstoCurrentPlaylist
+
+// AddRowtoCurrentPlaylist adds a row to the current playlist view.
+func AddRowtoCurrentPlaylist(row *CurrentPLRow) {
+
+	var iter gtk.TreeIter
+	playlistModel.Append(&iter)
+
+	if val, exists := currentArtworks[row.ArtworkPath]; exists {
+		playlistModel.Set(&iter, row.ID, val.GPixbuf, escapeHTML(row.Name), escapeHTML(row.Artist), escapeHTML(row.Album))
+	} else {
+		pbuf, pbufErr := gdkpixbuf.NewFromFileAtSize(row.ArtworkPath, CUR_PL_ALBUM_SIZE, CUR_PL_ALBUM_SIZE)
+		if pbufErr != nil {
+			log.ErrorReport("AddRowtoCurrentPlaylist()", "Could not load artwork ("+pbufErr.Error()+").")
+		} else {
+			currentArtworks[row.ArtworkPath] = pbuf
+			playlistModel.Set(&iter, row.ID, currentArtworks[row.ArtworkPath].GPixbuf, escapeHTML(row.Name), escapeHTML(row.Artist), escapeHTML(row.Album))
+		}
+	}
+
+	if row.Bold {
+		path := playlistModel.GetPath(&iter)
+		defer path.Free()
+		BoldRowByReference(&CurrentPLRow{ID: row.ID, gref: gtk.NewTreeRowReference(playlistModel, path)})
+	}
+
+} // end AddRowtoCurrentPlaylist
+
+// BoldRowByReference makes a row in the current playlist bold.
+// Only one row can be bold at a time.
+func BoldRowByReference(row *CurrentPLRow) {
+
+	var iter gtk.TreeIter
+	var strv string
+
+	// First, unbold the old row if there is one
+	if currentBoldRow.gref != nil && currentBoldRow.gref.Valid() {
+		path := currentBoldRow.gref.GetPath()
+		defer path.Free()
+		playlistModel.GetIter(&iter, path)
+		for vali := CUR_PL_COL_NAME; vali < NUM_PL_COLS; vali++ {
+			var val glib.GValue
+			playlistModel.GetValue(&iter, vali, &val)
+			strv = val.GetString()
+			playlistModel.SetValue(&iter, vali, removeBold(strv))
+		}
+		currentBoldRow.gref.Free()
+	}
+	currentBoldRow.gref = row.gref
+	path := currentBoldRow.gref.GetPath()
+	defer path.Free()
+	var id glib.GValue
+	playlistModel.GetIter(&iter, path)
+	playlistModel.GetValue(&iter, CUR_PL_COL_ID, &id)
+	currentBoldRow.ID = id.GetInt()
+	for vali := CUR_PL_COL_NAME; vali < NUM_PL_COLS; vali++ {
+		var val glib.GValue
+		playlistModel.GetValue(&iter, vali, &val)
+		strv = val.GetString()
+		playlistModel.SetValue(&iter, vali, addBold(strv))
+	}
+
+} // end BoldRowByReference
+
+// BoldRowById makes a row in the current playlist by the ID
+// of the song. Only one row can be bold at a time.
+func BoldRowById(rowId int) {
+
+	// Since this operation is O(n), only
+	// do it if need be.
+	if currentBoldRow.ID == rowId {
+		return
+	}
+
+	var iter gtk.TreeIter
+	ok := playlistModel.GetIterFirst(&iter)
+	for ok {
+		var id glib.GValue
+		playlistModel.GetValue(&iter, CUR_PL_COL_ID, &id)
+		if rowId == id.GetInt() {
+			path := playlistModel.GetPath(&iter)
+			defer path.Free()
+			// This will set currentBoldRow.ID properly:
+			BoldRowByReference(&CurrentPLRow{ID: id.GetInt(), gref: gtk.NewTreeRowReference(playlistModel, path)})
+			return
+		}
+		ok = playlistModel.IterNext(&iter)
+	}
+
+	log.ErrorReport("BoldRowById()", "Never found row with ID "+string(rowId))
+
+} // end BoldRowById
+
+// ClearCurrentPlaylist clears the current playlist view.
+func ClearCurrentPlaylist() {
+
+	currentBoldRow.gref = nil
+	currentBoldRow.ID = -1
+	playlistModel.Clear()
+
+	// In addition to cleaning up the model and all its
+	// references, the hashmap references need to be
+	// freed.
+	for key, value := range currentArtworks {
+		value.Unref() // Let Gobject clean up after us
+		delete(currentArtworks, key)
+	}
+
+} // end ClearCurrentPlaylist

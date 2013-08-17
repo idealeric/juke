@@ -30,7 +30,6 @@ func main() {
 
 	ui.InitInterface()
 
-	// Init any concurrent routines:
 	go update(updateChannel)
 
 	// For code tidyness, callbacks are defined in a seperate file.

@@ -36,6 +36,7 @@ const (
 	PLAY_OR_PAUSE
 	STOP
 	PROGRESS_CHANGE
+	CHANGE_TRACK
 	CONNECTION_REFREASH
 )
 
@@ -45,6 +46,7 @@ type jukeRequest struct {
 	state         jukeStateRequest // request type
 	progressX     int              // x value of the PROGRESS_CHANGE event request
 	progressWidth int              // width progressbar on PROGRESS_CHANGE request
+	clickedRow    *ui.CurrentPLRow // row that is clicked on CHANGE_TRACK request
 }
 
 // Variable rate at which juke will poll MPD, in ms
@@ -54,6 +56,61 @@ const (
 	PAUSED_POLLING  = 750
 	STOPPED_POLLING = 1000
 )
+
+// updateSongList fills the current playlist.
+func updateSongList(mpdConnection *mpd.Client, status mpd.Attrs, curPLVersion int) int {
+
+	if reportPLVersion, errPLVersion := strconv.Atoi(status["playlist"]); errPLVersion != nil {
+		log.ErrorReport("update() POLL_REFREASH", "Unable to convert the playlist version to a number.")
+	} else if reportPLVersion > curPLVersion {
+
+		if curPlay, errPlay := mpdConnection.PlaylistInfo(-1, -1); errPlay != nil {
+			log.ErrorReport("update() POLL_REFREASH", "Could not establish MPD current playlist ("+errPlay.Error()+").")
+		} else {
+
+			rows := make([]*ui.CurrentPLRow, len(curPlay))
+			ui.ClearCurrentPlaylist()
+
+			for i, r := range curPlay {
+				if rId, errId := strconv.Atoi(r["Id"]); errId != nil {
+					log.ErrorReport("update() POLL_REFREASH", "Could not convert songid ("+errId.Error()+").")
+				} else if status["songid"] == r["Id"] {
+					rows[i] = &ui.CurrentPLRow{
+						ID:          rId,
+						ArtworkPath: albumArtFilename(r["file"]),
+						Name:        r["Title"],
+						Artist:      r["Artist"],
+						Album:       r["Album"],
+						Bold:        true}
+				} else {
+					rows[i] = &ui.CurrentPLRow{
+						ID:          rId,
+						ArtworkPath: albumArtFilename(r["file"]),
+						Name:        r["Title"],
+						Artist:      r["Artist"],
+						Album:       r["Album"],
+						Bold:        false}
+				}
+			}
+
+			ui.AddManyRowstoCurrentPlaylist(rows)
+			return reportPLVersion
+
+		} // end if established playlist info
+
+	} else if songIdStr, exists := status["songid"]; exists {
+		if songId, errSongId := strconv.Atoi(songIdStr); errSongId != nil {
+			log.ErrorReport("update() POLL_REFREASH", "Unable to convert the songid to a number.")
+		} else {
+			ui.BoldRowById(songId)
+		}
+	} // end if convert playlist version
+
+	// If this line is reached, one of the errors occured,
+	// so return the same value since nothing was updated.
+	return curPLVersion
+
+} // end updateSongList
 
 // update blocks waiting for some other thread to tell it to force an update on the UI.
 // An update might come from:
@@ -69,11 +126,13 @@ func update(stateRequestChannel chan *jukeRequest) {
 		mpdConnection *mpd.Client = nil
 		errDial       error       = nil
 		pollChannel   chan int    = make(chan int)
+		curPLVersion  int         = -1
 	)
 
 	go func() {
 		// Juke needs to establish an initial connection.
 		// Thus, a thread is spawn just to send an initial CONNECTION_REFREASH.
+		// The threading is needed because this will block:
 		stateRequestChannel <- &jukeRequest{state: CONNECTION_REFREASH}
 	}()
 
@@ -116,6 +175,7 @@ func update(stateRequestChannel chan *jukeRequest) {
 				ui.SetCurrentSongNotConnected()
 				ui.SetCurrentAlbumArt(ui.NO_COVER_ARTWORK)
 				ui.SetProgressBarTimeStoppedOrDisconnected()
+				ui.ClearCurrentPlaylist()
 				currentState = NOT_CONNECTED
 				pollChannel <- END_POLLING
 			} else if status["state"] == "stop" {
@@ -123,6 +183,7 @@ func update(stateRequestChannel chan *jukeRequest) {
 				ui.SetCurrentSongStopped()
 				ui.SetCurrentAlbumArt(ui.NO_COVER_ARTWORK)
 				ui.SetProgressBarTimeStoppedOrDisconnected()
+				curPLVersion = updateSongList(mpdConnection, status, curPLVersion)
 				currentState = CONNECTED_AND_STOPPED
 				pollChannel <- STOPPED_POLLING
 			} else {
@@ -154,6 +215,16 @@ func update(stateRequestChannel chan *jukeRequest) {
 					}
 				}
 
+				curPLVersion = updateSongList(mpdConnection, status, curPLVersion)
+
+			} // end status state conditional
+
+		case CHANGE_TRACK:
+
+			if errReplay := mpdConnection.PlayId(request.clickedRow.ID); errReplay != nil {
+				log.ErrorReport("update() CHANGE_TRACK", "Could not mpd.PlayId() ("+errReplay.Error()+").")
+			} else {
+				ui.BoldRowByReference(request.clickedRow)
 			}
 
 		case NEXT_TRACK, PREVIOUS_TRACK:
@@ -275,6 +346,7 @@ func update(stateRequestChannel chan *jukeRequest) {
 
 } // end update
 
+// poll is used to send signals every so often.
 func poll(updateChannel chan *jukeRequest, pollChannel chan int) {
 
 	var rate int

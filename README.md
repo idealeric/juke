@@ -7,6 +7,5 @@ The TODO List
 -------------------------
 
 * Icons and actions for secondary controls.
-* A playlist browser.
 * A library browser.
 * Configuration options.

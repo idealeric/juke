@@ -20,3 +20,18 @@ func escapeHTML(s string) string {
 	return strings.Replace(ret, "\"", "&quot;", -1)
 
 } // end escapeHTML
+
+// addBold takes a string and makes it bold.
+func addBold(str string) string {
+
+	return "<b>" + str + "</b>"
+
+} // end addBold
+
+// removeBold takes a string and makes it not bold.
+func removeBold(str string) string {
+
+	ret := strings.Replace(str, "<b>", "", -1)
+	return strings.Replace(ret, "</b>", "", -1)
+
+} // end removeBold
