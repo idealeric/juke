@@ -5,6 +5,7 @@ is to abstract and de-couple the main program's logic from the user interface.
 package ui
 
 import (
+	"github.com/idealeric/juke/log"
 	"github.com/mattn/go-gtk/gdk"
 	"github.com/mattn/go-gtk/gdkpixbuf"
 	"github.com/mattn/go-gtk/glib"
@@ -272,21 +273,13 @@ func SetCurrentAlbumArt(path string) {
 	}
 	currentAlbumArtPath = path
 
-	pbuf, pbufErr := gdkpixbuf.NewFromFile(path)
-	if pbufErr == nil {
-		height, width, biggerDem := float64(pbuf.GetHeight()), float64(pbuf.GetWidth()), 0.0
-		if height > width {
-			biggerDem = height
-		} else {
-			biggerDem = width
-		}
-		currentAlbumArt.SetFromPixbuf(
-			gdkpixbuf.ScaleSimple(
-				pbuf,
-				int(width/biggerDem*float64(controlsSize)),
-				int(height/biggerDem*float64(controlsSize)),
-				gdkpixbuf.INTERP_BILINEAR))
+	pbuf, pbufErr := gdkpixbuf.NewFromFileAtSize(path, controlsSize, controlsSize)
+	if pbufErr != nil {
+		log.ErrorReport("SetCurrentAlbumArt()", "Could not load current album art ("+pbufErr.Error()+").")
+	} else {
+		currentAlbumArt.SetFromPixbuf(pbuf)
 	}
+	pbuf.Unref()
 
 } // end SetCurrentAlbumArt
 
