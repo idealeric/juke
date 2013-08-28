@@ -7,7 +7,7 @@ This particular file has Juke's concurrent functions (goroutines).
 package main
 
 import (
-	"code.google.com/p/gompd/mpd"
+	"github.com/fhs/gompd/mpd"
 	"github.com/idealeric/juke/log"
 	"github.com/idealeric/juke/ui"
 	"strconv"
@@ -37,16 +37,18 @@ const (
 	STOP
 	PROGRESS_CHANGE
 	CHANGE_TRACK
+	SORT_PLAYLIST
 	CONNECTION_REFREASH
 )
 
 // update() accepts jukeRequests, which consist in a jukeStateRequest and any other
 // information that may be required. Members will be added as needed.
 type jukeRequest struct {
-	state         jukeStateRequest // request type
-	progressX     int              // x value of the PROGRESS_CHANGE event request
-	progressWidth int              // width progressbar on PROGRESS_CHANGE request
-	clickedRow    *ui.CurrentPLRow // row that is clicked on CHANGE_TRACK request
+	state         jukeStateRequest      // request type
+	progressX     int                   // x value of the PROGRESS_CHANGE event request
+	progressWidth int                   // width progressbar on PROGRESS_CHANGE request
+	clickedRow    *ui.CurrentPLRow      // row that is clicked on CHANGE_TRACK request
+	playlistChan  chan *ui.CurrentPLRow // chan for rows on SORT_PLAYLIST request
 }
 
 // Variable rate at which juke will poll MPD, in ms
@@ -225,6 +227,22 @@ func update(stateRequestChannel chan *jukeRequest) {
 				log.ErrorReport("update() CHANGE_TRACK", "Could not mpd.PlayId() ("+errReplay.Error()+").")
 			} else {
 				ui.BoldRowByReference(request.clickedRow)
+			}
+
+		case SORT_PLAYLIST:
+
+			cmdList := mpdConnection.BeginCommandList()
+
+			pos := 0
+			for row := range request.playlistChan {
+				cmdList.MoveId(row.ID, pos)
+				pos++
+			}
+
+			if cmdErr := cmdList.End(); cmdErr != nil {
+				log.ErrorReport("update() SORT_PLAYLIST", "Could not end the command list ("+cmdErr.Error()+").")
+			} else {
+				curPLVersion += pos
 			}
 
 		case NEXT_TRACK, PREVIOUS_TRACK:

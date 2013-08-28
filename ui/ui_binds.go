@@ -8,6 +8,8 @@ import (
 	"unsafe"
 )
 
+const ROW_BUFFER_SIZE = 50
+
 func callBackCheckandCheckforError(f func() error, cntx *glib.CallbackContext) {
 	if err := f(); err != nil {
 		log.ErrorReport("UI callBackCheckandCheckforError()", err.Error()+".")
@@ -101,3 +103,33 @@ func CurrentRowDoubleClick(f func(*CurrentPLRow) error) {
 	})
 
 } // end CurrentRowDoubleClick
+
+// CurrentColumnClick will bind to the "column click" event in the
+// current playlist.
+func CurrentColumnClick(f func(chan *CurrentPLRow) error) {
+
+	for _, c := range playlistCols {
+		c.Connect("clicked", func(cntx *glib.CallbackContext) {
+
+			rowsChan := make(chan *CurrentPLRow, ROW_BUFFER_SIZE)
+
+			go func() {
+				var iter gtk.TreeIter
+				ok := playlistModel.GetIterFirst(&iter)
+				for ok {
+					var id glib.GValue
+					playlistModel.GetValue(&iter, CUR_PL_COL_ID, &id)
+					rowsChan <- &CurrentPLRow{ID: id.GetInt()}
+					ok = playlistModel.IterNext(&iter)
+				}
+				close(rowsChan)
+			}()
+
+			if err := f(rowsChan); err != nil {
+				log.ErrorReport("UI callBackCheckandCheckforError()", err.Error()+".")
+			}
+
+		})
+	} // end for range of columns
+
+} // end CurrentColumnClick

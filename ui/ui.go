@@ -85,6 +85,8 @@ var (
 	progressBarEvent    *gtk.EventBox                // Progress bar eventbox (for click events)
 	playlistTree        *gtk.TreeView                // Treeview for the current playlist.
 	playlistModel       *gtk.ListStore               // Model for the current playlist.
+	playlistSortable    *gtk.TreeSortable            // Playlist sortable.
+	playlistCols        [3]*gtk.TreeViewColumn       // Playlist columns.
 	currentBoldRow      CurrentPLRow                 // Currently bolded row reference.
 	currentArtworks     map[string]*gdkpixbuf.Pixbuf // Hash table for fast artwork lookup.
 )
@@ -178,29 +180,35 @@ func InitInterface() {
 	currentArtworks = make(map[string]*gdkpixbuf.Pixbuf)
 	playlistTree = gtk.NewTreeView()
 	playlistModel = gtk.NewListStore(gtk.TYPE_INT, gdkpixbuf.GetType(), gtk.TYPE_STRING, gtk.TYPE_STRING, gtk.TYPE_STRING)
+	playlistSortable = gtk.NewTreeSortable(playlistModel)
 	//playlistTree.SetReorderable(true) // TODO - reordering
 	playlistTree.SetModel(playlistModel)
 	playlistColNames := []string{"ID", "Art", "Name", "Artist", "Album"}
-	playlistCol := gtk.NewTreeViewColumn()
-	playlistCol.SetSpacing(3)
-	playlistCol.SetTitle(playlistColNames[CUR_PL_COL_NAME])
-	playlistCol.SetMinWidth(370) // TODO - Remember sizing.
+	var playlistCol *gtk.TreeViewColumn
 	for ci := CUR_PL_COL_NAME; ci < NUM_PL_COLS; ci++ {
 		if ci == CUR_PL_COL_NAME {
+			playlistCol = gtk.NewTreeViewColumn()
+			playlistCol.SetSpacing(3)
+			playlistCol.SetTitle(playlistColNames[CUR_PL_COL_NAME])
+			playlistCol.SetMinWidth(370) // TODO - Remember sizing.
 			cellPix := gtk.NewCellRendererPixbuf()
 			playlistCol.PackStart(cellPix, false)
 			playlistCol.AddAttribute(cellPix, "pixbuf", CUR_PL_COL_ART)
 			cellText := gtk.NewCellRendererText()
 			playlistCol.PackStart(cellText, true)
 			playlistCol.AddAttribute(cellText, "markup", CUR_PL_COL_NAME)
+			playlistCol.SetSortColumnId(CUR_PL_COL_NAME)
+			playlistSortable.SetSortFunc(CUR_PL_COL_NAME, makeSortFunc(CUR_PL_COL_NAME))
 		} else {
 			playlistCol = gtk.NewTreeViewColumnWithAttributes(playlistColNames[ci], gtk.NewCellRendererText(), "markup", ci)
 			playlistCol.SetMinWidth(190)
+			playlistCol.SetSortColumnId(ci)
+			playlistSortable.SetSortFunc(ci, makeSortFunc(ci))
 		}
 		playlistCol.SetResizable(true)
 		playlistCol.SetSizing(gtk.TREE_VIEW_COLUMN_FIXED) // TODO - Remember sizing.
-		playlistCol.SetClickable(true) // TODO - Make sortable.
 		playlistTree.AppendColumn(playlistCol)
+		playlistCols[ci-CUR_PL_COL_NAME] = playlistCol
 	}
 	playlistScroll := gtk.NewScrolledWindow(nil, nil)
 	playlistScroll.SetPolicy(gtk.POLICY_AUTOMATIC, gtk.POLICY_ALWAYS)
@@ -511,6 +519,7 @@ func ClearCurrentPlaylist() {
 	currentBoldRow.gref = nil
 	currentBoldRow.ID = -1
 	playlistModel.Clear()
+	playlistSortable.SetSortColumnId(gtk.TREE_SORTABLE_UNSORTED_SORT_COLUMN_ID, gtk.SORT_ASCENDING)
 
 	// In addition to cleaning up the model and all its
 	// references, the hashmap references need to be

@@ -61,4 +61,11 @@ func initCallBacks(updateChannel chan *jukeRequest) {
 		return nil
 	})
 
+	ui.CurrentColumnClick(func(rc chan *ui.CurrentPLRow) error {
+		go func() {
+			updateChannel <- &jukeRequest{state: SORT_PLAYLIST, playlistChan: rc}
+		}()
+		return nil
+	})
+
 } // end initCallbacks
