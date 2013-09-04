@@ -2,7 +2,7 @@
 Juke is a front-end, GTK+ client for the Music Playing Deamon.
 
 Copyright: Eric Butler 2013
-Version:   0.2a
+Version:   0.3a
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
