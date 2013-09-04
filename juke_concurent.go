@@ -7,6 +7,7 @@ This particular file has Juke's concurrent functions (goroutines).
 package main
 
 import (
+	"container/list"
 	"github.com/fhs/gompd/mpd"
 	"github.com/idealeric/juke/log"
 	"github.com/idealeric/juke/ui"
@@ -38,6 +39,8 @@ const (
 	PROGRESS_CHANGE
 	CHANGE_TRACK
 	SORT_PLAYLIST
+	REMOVE_PLAYLIST
+	CLEAR_PLAYLIST
 	CONNECTION_REFREASH
 )
 
@@ -244,6 +247,30 @@ func update(stateRequestChannel chan *jukeRequest) {
 			} else {
 				curPLVersion += pos
 			}
+
+		case REMOVE_PLAYLIST:
+
+			cmdList := mpdConnection.BeginCommandList()
+
+			rmRows := 0
+			rmRowsList := list.New()
+			for row := range request.playlistChan {
+				cmdList.DeleteId(row.ID)
+				rmRowsList.PushBack(row)
+				rmRows++
+			}
+
+			if cmdErr := cmdList.End(); cmdErr != nil {
+				log.ErrorReport("update() REMOVE_PLAYLIST", "Could not end the command list ("+cmdErr.Error()+").")
+			} else {
+				ui.RemoveManyRowsfromCurrentPlaylist(rmRowsList)
+				curPLVersion += rmRows
+			}
+
+		case CLEAR_PLAYLIST:
+
+			mpdConnection.Clear()
+			ui.ClearCurrentPlaylist()
 
 		case NEXT_TRACK, PREVIOUS_TRACK:
 

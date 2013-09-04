@@ -68,4 +68,18 @@ func initCallBacks(updateChannel chan *jukeRequest) {
 		return nil
 	})
 
+	ui.CurrentRemoveSongs(func(rc chan *ui.CurrentPLRow) error {
+		go func() {
+			updateChannel <- &jukeRequest{state: REMOVE_PLAYLIST, playlistChan: rc}
+		}()
+		return nil
+	})
+
+	ui.CurrentClearSongs(func() error {
+		go func() {
+			updateChannel <- &jukeRequest{state: CLEAR_PLAYLIST}
+		}()
+		return nil
+	})
+
 } // end initCallbacks

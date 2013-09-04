@@ -5,12 +5,14 @@ is to abstract and de-couple the main program's logic from the user interface.
 package ui
 
 import (
+	"container/list"
 	"github.com/idealeric/juke/log"
 	"github.com/mattn/go-gtk/gdk"
 	"github.com/mattn/go-gtk/gdkpixbuf"
 	"github.com/mattn/go-gtk/glib"
 	"github.com/mattn/go-gtk/gtk"
 	"strconv"
+	"unsafe"
 )
 
 // Playback control constant indexes:
@@ -51,7 +53,8 @@ const (
 
 const (
 	CUR_PL_COL_ID int = iota
-	CUR_PL_COL_ART
+	CUR_PL_COL_ARTPATH
+	CUR_PL_COL_ARTBUF
 	CUR_PL_COL_NAME
 	CUR_PL_COL_ARTIST
 	CUR_PL_COL_ALBUM
@@ -70,6 +73,11 @@ type CurrentPLRow struct {
 	gref        *gtk.TreeRowReference
 }
 
+type curArtWrkStorage struct {
+	pbufPointer *gdkpixbuf.Pixbuf
+	count       uint
+}
+
 // Global referances for all "updating" GUI elements.
 var (
 	window              *gtk.Window                  // Main window
@@ -86,9 +94,12 @@ var (
 	playlistTree        *gtk.TreeView                // Treeview for the current playlist.
 	playlistModel       *gtk.ListStore               // Model for the current playlist.
 	playlistSortable    *gtk.TreeSortable            // Playlist sortable.
+	playlistSelection   *gtk.TreeSelection           // Treeview selection for the current playlist.
+	playlistMenuRemove  *gtk.MenuItem                // Treeview popup menu item for remove.
+	playlistMenuClear   *gtk.MenuItem                // Treeview popup menu item for clear.
 	playlistCols        [3]*gtk.TreeViewColumn       // Playlist columns.
 	currentBoldRow      CurrentPLRow                 // Currently bolded row reference.
-	currentArtworks     map[string]*gdkpixbuf.Pixbuf // Hash table for fast artwork lookup.
+	currentArtworks     map[string]*curArtWrkStorage // Hash table for fast artwork lookup.
 )
 
 // MainLoop runs the GUI toolkit's main loop.
@@ -177,13 +188,13 @@ func InitInterface() {
 	mainBox := gtk.NewVBox(false, 8) // Main VBox to glue UI the together
 
 	// Current playlist treeview:
-	currentArtworks = make(map[string]*gdkpixbuf.Pixbuf)
+	currentArtworks = make(map[string]*curArtWrkStorage)
 	playlistTree = gtk.NewTreeView()
-	playlistModel = gtk.NewListStore(gtk.TYPE_INT, gdkpixbuf.GetType(), gtk.TYPE_STRING, gtk.TYPE_STRING, gtk.TYPE_STRING)
+	playlistModel = gtk.NewListStore(gtk.TYPE_INT, gtk.TYPE_STRING, gdkpixbuf.GetType(), gtk.TYPE_STRING, gtk.TYPE_STRING, gtk.TYPE_STRING)
 	playlistSortable = gtk.NewTreeSortable(playlistModel)
 	//playlistTree.SetReorderable(true) // TODO - reordering
 	playlistTree.SetModel(playlistModel)
-	playlistColNames := []string{"ID", "Art", "Name", "Artist", "Album"}
+	playlistColNames := []string{"ID", "ArtPath", "ArtBuf", "Name", "Artist", "Album"}
 	var playlistCol *gtk.TreeViewColumn
 	for ci := CUR_PL_COL_NAME; ci < NUM_PL_COLS; ci++ {
 		if ci == CUR_PL_COL_NAME {
@@ -193,7 +204,7 @@ func InitInterface() {
 			playlistCol.SetMinWidth(370) // TODO - Remember sizing.
 			cellPix := gtk.NewCellRendererPixbuf()
 			playlistCol.PackStart(cellPix, false)
-			playlistCol.AddAttribute(cellPix, "pixbuf", CUR_PL_COL_ART)
+			playlistCol.AddAttribute(cellPix, "pixbuf", CUR_PL_COL_ARTBUF)
 			cellText := gtk.NewCellRendererText()
 			playlistCol.PackStart(cellText, true)
 			playlistCol.AddAttribute(cellText, "markup", CUR_PL_COL_NAME)
@@ -215,6 +226,28 @@ func InitInterface() {
 	playlistScroll.Add(playlistTree)
 	playlistScroll.SetSizeRequest(-1, 330)
 	mainBox.PackStart(playlistScroll, true, true, 0)
+
+	// Current playlist right click menu:
+	playlistSelection = playlistTree.GetSelection()
+	playlistSelection.SetMode(gtk.SELECTION_MULTIPLE)
+	playlistMenu := gtk.NewMenu()
+	playlistMenuRemove = gtk.NewMenuItemWithLabel("Remove Song(s)")
+	playlistMenu.Append(playlistMenuRemove)
+	playlistMenu.Append(gtk.NewSeparatorMenuItem())
+	playlistMenuClear = gtk.NewMenuItemWithLabel("Clear Playlist")
+	playlistMenu.Append(playlistMenuClear)
+	playlistMenu.ShowAll()
+	playlistTree.Connect("button-press-event", func(cntx *glib.CallbackContext) bool {
+		arg := cntx.Args(0)
+		eventButton := *(**gdk.EventButton)(unsafe.Pointer(&arg))
+		if eventButton.Button == 3 { // Right click.
+			playlistMenu.Popup(nil, nil, nil, nil, uint(arg), uint32(cntx.Args(1)))
+			if playlistSelection.CountSelectedRows() > 1 {
+				return true
+			}
+		}
+		return false
+	})
 
 	bottomStatusBar := gtk.NewHBox(false, 8) // Main HBox for albumart, controls and other current stuff
 	progressAndControls := gtk.NewVBox(false, 5)
@@ -410,6 +443,45 @@ func Unlock() {
 
 } // end Unlock
 
+// RemoveManyRowsfromCurrentPlaylist removes mulitple rows at once.
+// It is designed to be more efficient than removing one row at a time.
+func RemoveManyRowsfromCurrentPlaylist(rowsList *list.List) {
+
+	playlistTree.SetModel(nil)
+	for e := rowsList.Front(); e != nil; e = e.Next() {
+		RemoveRowfromCurrentPlaylist(e.Value.(*CurrentPLRow))
+	}
+	playlistTree.SetModel(playlistModel)
+
+} // end RemoveManyRowsfromCurrentPlaylist
+
+// RemoveRowfromCurrentPlaylist adds a row to the current playlist view.
+func RemoveRowfromCurrentPlaylist(row *CurrentPLRow) {
+
+	if row.gref != nil && row.gref.Valid() {
+		var iter gtk.TreeIter
+		var val glib.GValue
+
+		path := row.gref.GetPath()
+		defer path.Free()
+		playlistModel.GetIter(&iter, path)
+
+		playlistModel.GetValue(&iter, CUR_PL_COL_ARTPATH, &val)
+		strv := val.GetString()
+		currentArtworks[strv].count--
+		// Juke keeps track of its rows using a artwork, and
+		// when it runs out, it frees up the gobject.
+		if currentArtworks[strv].count == 0 {
+			currentArtworks[strv].pbufPointer.Unref()
+			delete(currentArtworks, strv)
+		}
+
+		playlistModel.Remove(&iter)
+	}
+	row.gref.Free()
+
+} // end RemoveRowfromCurrentPlaylist
+
 // AddManyRowstoCurrentPlaylist adds mulitple rows at once.
 // It is designed to be more efficient than adding one row at a time.
 func AddManyRowstoCurrentPlaylist(rows []*CurrentPLRow) {
@@ -429,14 +501,15 @@ func AddRowtoCurrentPlaylist(row *CurrentPLRow) {
 	playlistModel.Append(&iter)
 
 	if val, exists := currentArtworks[row.ArtworkPath]; exists {
-		playlistModel.Set(&iter, row.ID, val.GPixbuf, escapeHTML(row.Name), escapeHTML(row.Artist), escapeHTML(row.Album))
+		playlistModel.Set(&iter, row.ID, row.ArtworkPath, val.pbufPointer.GPixbuf, escapeHTML(row.Name), escapeHTML(row.Artist), escapeHTML(row.Album))
+		val.count++
 	} else {
 		pbuf, pbufErr := gdkpixbuf.NewFromFileAtSize(row.ArtworkPath, CUR_PL_ALBUM_SIZE, CUR_PL_ALBUM_SIZE)
 		if pbufErr != nil {
 			log.ErrorReport("AddRowtoCurrentPlaylist()", "Could not load artwork ("+pbufErr.Error()+").")
 		} else {
-			currentArtworks[row.ArtworkPath] = pbuf
-			playlistModel.Set(&iter, row.ID, currentArtworks[row.ArtworkPath].GPixbuf, escapeHTML(row.Name), escapeHTML(row.Artist), escapeHTML(row.Album))
+			currentArtworks[row.ArtworkPath] = &curArtWrkStorage{pbuf, 1}
+			playlistModel.Set(&iter, row.ID, row.ArtworkPath, pbuf.GPixbuf, escapeHTML(row.Name), escapeHTML(row.Artist), escapeHTML(row.Album))
 		}
 	}
 
@@ -524,9 +597,9 @@ func ClearCurrentPlaylist() {
 	// In addition to cleaning up the model and all its
 	// references, the hashmap references need to be
 	// freed.
-	for key, value := range currentArtworks {
-		value.Unref() // Let Gobject clean up after us
-		delete(currentArtworks, key)
+	for artPath, pbufValue := range currentArtworks {
+		pbufValue.pbufPointer.Unref() // Let Gobject clean up after us
+		delete(currentArtworks, artPath)
 	}
 
 } // end ClearCurrentPlaylist

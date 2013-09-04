@@ -133,3 +133,49 @@ func CurrentColumnClick(f func(chan *CurrentPLRow) error) {
 	} // end for range of columns
 
 } // end CurrentColumnClick
+
+// CurrentRemoveSongs will bind to the "click" event on the
+// remove songs button in the current playlist menu.
+func CurrentRemoveSongs(f func(chan *CurrentPLRow) error) {
+
+	playlistMenuRemove.Connect("activate", func(cntx *glib.CallbackContext) {
+
+		rowsChan := make(chan *CurrentPLRow, ROW_BUFFER_SIZE)
+
+		go func() {
+			var iter gtk.TreeIter
+			ok := playlistModel.GetIterFirst(&iter)
+			for ok {
+
+				path := playlistModel.GetPath(&iter)
+				defer path.Free()
+
+				if playlistSelection.PathIsSelected(path) {
+					var id glib.GValue
+					playlistModel.GetValue(&iter, CUR_PL_COL_ID, &id)
+					rowsChan <- &CurrentPLRow{ID: id.GetInt(), gref: gtk.NewTreeRowReference(playlistModel, path)}
+				}
+
+				ok = playlistModel.IterNext(&iter)
+
+			}
+			close(rowsChan)
+		}()
+
+		if err := f(rowsChan); err != nil {
+			log.ErrorReport("UI callBackCheckandCheckforError()", err.Error()+".")
+		}
+
+	})
+
+} // end CurrentRemoveSongs
+
+// CurrentClearSongs will bind the "click" event on the
+// clear playlist button in the current playlist menu.
+func CurrentClearSongs(f func() error) {
+
+	playlistMenuClear.Connect("activate", func(cntx *glib.CallbackContext) {
+		callBackCheckandCheckforError(f, cntx)
+	})
+
+} // end CurrentClearSongs
